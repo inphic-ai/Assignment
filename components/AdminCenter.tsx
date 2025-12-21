@@ -1,15 +1,22 @@
 import React, { useState, useRef } from 'react';
-import { AppState, LogEntry, User, GoalCategory } from '../types';
-import { Users, History, Target, ShieldAlert, Plus, Ban, MoreHorizontal, Check, X, Edit2, Power, Shield, Smartphone, Globe, Settings, Bell, Camera } from 'lucide-react';
+import { AppState, LogEntry, User, GoalCategory, AnnouncementLevel, Announcement } from '../types';
+import { Users, History, Target, ShieldAlert, Plus, Ban, MoreHorizontal, Check, X, Edit2, Power, Shield, Smartphone, Globe, Settings, Bell, Camera, AlertTriangle, Info, Megaphone, Trash2 } from 'lucide-react';
 
 interface AdminCenterProps {
   data: AppState;
   onAddGoal: (goal: string) => void;
   onUpdateUser: (id: string, updates: Partial<User>) => void;
   onToggleGoal: (goal: GoalCategory, active: boolean) => void; 
+  // Announcement Actions
+  onCreateAnnouncement: (content: string, level: AnnouncementLevel) => void;
+  onUpdateAnnouncement: (id: string, updates: Partial<Announcement>) => void;
+  onDeleteAnnouncement: (id: string) => void;
 }
 
-const AdminCenter: React.FC<AdminCenterProps> = ({ data, onAddGoal, onUpdateUser }) => {
+const AdminCenter: React.FC<AdminCenterProps> = ({ 
+  data, onAddGoal, onUpdateUser, 
+  onCreateAnnouncement, onUpdateAnnouncement, onDeleteAnnouncement 
+}) => {
   const [activeTab, setActiveTab] = useState<'logs' | 'users' | 'goals' | 'login_logs' | 'system'>('logs');
   
   // User Editing State
@@ -22,7 +29,11 @@ const AdminCenter: React.FC<AdminCenterProps> = ({ data, onAddGoal, onUpdateUser
 
   // System Settings State (Mocked)
   const [timezone, setTimezone] = useState('Asia/Taipei');
-  const [systemAnnouncement, setSystemAnnouncement] = useState('');
+  
+  // Announcement State
+  const [announcementInput, setAnnouncementInput] = useState('');
+  const [announcementLevel, setAnnouncementLevel] = useState<AnnouncementLevel>('info');
+  const [editingAnnouncementId, setEditingAnnouncementId] = useState<string | null>(null);
 
   const startEditUser = (user: User) => {
     setEditingUserId(user.id);
@@ -42,6 +53,35 @@ const AdminCenter: React.FC<AdminCenterProps> = ({ data, onAddGoal, onUpdateUser
         const avatarUrl = URL.createObjectURL(file);
         setEditUserForm(prev => ({ ...prev, avatar: avatarUrl }));
      }
+  };
+
+  // --- Announcement Handlers ---
+  const handleEditAnnouncement = (ann: Announcement) => {
+    setEditingAnnouncementId(ann.id);
+    setAnnouncementInput(ann.content);
+    setAnnouncementLevel(ann.level);
+  };
+
+  const handleSaveAnnouncement = () => {
+    if (!announcementInput.trim()) return;
+
+    if (editingAnnouncementId) {
+      onUpdateAnnouncement(editingAnnouncementId, { 
+        content: announcementInput, 
+        level: announcementLevel 
+      });
+      setEditingAnnouncementId(null);
+    } else {
+      onCreateAnnouncement(announcementInput, announcementLevel);
+    }
+    setAnnouncementInput('');
+    setAnnouncementLevel('info');
+  };
+
+  const handleCancelAnnouncementEdit = () => {
+    setEditingAnnouncementId(null);
+    setAnnouncementInput('');
+    setAnnouncementLevel('info');
   };
 
   // --- RENDERERS ---
@@ -342,46 +382,142 @@ const AdminCenter: React.FC<AdminCenterProps> = ({ data, onAddGoal, onUpdateUser
   );
 
   const renderSystem = () => (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-       <div className="bg-white p-6 rounded-[2rem] border border-stone-100 shadow-sm">
-          <h3 className="text-lg font-bold text-stone-800 mb-6 flex items-center gap-2">
-            <Globe size={20} className="text-blue-500" /> 地區與時間
-          </h3>
-          <div className="space-y-4">
-             <div>
-               <label className="block text-sm font-bold text-stone-500 mb-2">系統時區 (Timezone)</label>
-               <select 
-                 value={timezone} 
-                 onChange={(e) => setTimezone(e.target.value)}
-                 className="w-full p-3 rounded-xl bg-stone-50 border border-stone-200 text-stone-700 font-medium"
-               >
-                 <option value="Asia/Taipei">Asia/Taipei (GMT+8)</option>
-                 <option value="Asia/Tokyo">Asia/Tokyo (GMT+9)</option>
-                 <option value="America/New_York">America/New_York (GMT-4)</option>
-                 <option value="UTC">UTC</option>
-               </select>
-               <p className="text-xs text-stone-400 mt-2">此設定將影響系統日誌的時間戳記與排程基準。</p>
-             </div>
-          </div>
+    <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+       {/* Left: General Settings */}
+       <div className="space-y-8">
+         <div className="bg-white p-6 rounded-[2rem] border border-stone-100 shadow-sm">
+            <h3 className="text-lg font-bold text-stone-800 mb-6 flex items-center gap-2">
+              <Globe size={20} className="text-blue-500" /> 地區與時間
+            </h3>
+            <div className="space-y-4">
+               <div>
+                 <label className="block text-sm font-bold text-stone-500 mb-2">系統時區 (Timezone)</label>
+                 <select 
+                   value={timezone} 
+                   onChange={(e) => setTimezone(e.target.value)}
+                   className="w-full p-3 rounded-xl bg-stone-50 border border-stone-200 text-stone-700 font-medium"
+                 >
+                   <option value="Asia/Taipei">Asia/Taipei (GMT+8)</option>
+                   <option value="Asia/Tokyo">Asia/Tokyo (GMT+9)</option>
+                   <option value="America/New_York">America/New_York (GMT-4)</option>
+                   <option value="UTC">UTC</option>
+                 </select>
+               </div>
+            </div>
+         </div>
+
+         {/* Create/Edit Announcement */}
+         <div className="bg-white p-6 rounded-[2rem] border border-stone-100 shadow-sm">
+            <h3 className="text-lg font-bold text-stone-800 mb-6 flex items-center gap-2">
+               <Bell size={20} className="text-amber-500" /> 
+               {editingAnnouncementId ? '編輯公告' : '發布新公告'}
+            </h3>
+            <div className="space-y-4">
+               <div>
+                 <label className="block text-sm font-bold text-stone-500 mb-2">公告等級</label>
+                 <div className="flex gap-2">
+                    {[
+                      { id: 'info', label: '一般通知', icon: Info, color: 'bg-blue-100 text-blue-700 border-blue-200' },
+                      { id: 'warning', label: '重要提醒', icon: Megaphone, color: 'bg-amber-100 text-amber-700 border-amber-200' },
+                      { id: 'urgent', label: '緊急通知', icon: AlertTriangle, color: 'bg-red-100 text-red-700 border-red-200' },
+                    ].map(lvl => (
+                      <button
+                        key={lvl.id}
+                        onClick={() => setAnnouncementLevel(lvl.id as AnnouncementLevel)}
+                        className={`flex-1 flex items-center justify-center gap-2 py-2 rounded-xl border-2 transition-all ${
+                          announcementLevel === lvl.id ? lvl.color : 'bg-white border-stone-200 text-stone-400 hover:bg-stone-50'
+                        }`}
+                      >
+                        <lvl.icon size={16} />
+                        <span className="text-xs font-bold">{lvl.label}</span>
+                      </button>
+                    ))}
+                 </div>
+               </div>
+
+               <div>
+                 <label className="block text-sm font-bold text-stone-500 mb-2">內容</label>
+                 <textarea 
+                   value={announcementInput} 
+                   onChange={(e) => setAnnouncementInput(e.target.value)}
+                   placeholder="輸入公告內容..."
+                   className="w-full p-3 rounded-xl bg-stone-50 border border-stone-200 h-24 text-stone-700 focus:ring-2 focus:ring-amber-500 outline-none"
+                 />
+               </div>
+               
+               <div className="flex gap-2">
+                 <button 
+                   onClick={handleSaveAnnouncement}
+                   className="flex-1 bg-stone-800 text-white py-3 rounded-xl font-bold hover:bg-stone-700 transition-colors flex items-center justify-center gap-2"
+                 >
+                   <Check size={18} /> {editingAnnouncementId ? '儲存更新' : '確認發布'}
+                 </button>
+                 {editingAnnouncementId && (
+                   <button 
+                     onClick={handleCancelAnnouncementEdit}
+                     className="px-4 py-3 rounded-xl font-bold text-stone-500 bg-stone-200 hover:bg-stone-300"
+                   >
+                     取消
+                   </button>
+                 )}
+               </div>
+            </div>
+         </div>
        </div>
 
-       <div className="bg-white p-6 rounded-[2rem] border border-stone-100 shadow-sm">
-          <h3 className="text-lg font-bold text-stone-800 mb-6 flex items-center gap-2">
-             <Bell size={20} className="text-amber-500" /> 系統公告
+       {/* Right: Announcement List */}
+       <div className="bg-white p-6 rounded-[2rem] border border-stone-100 shadow-sm flex flex-col h-[600px]">
+          <h3 className="text-lg font-bold text-stone-800 mb-4 flex items-center gap-2">
+             <History size={20} className="text-stone-400" /> 公告列表
           </h3>
-          <div className="space-y-4">
-             <div>
-               <label className="block text-sm font-bold text-stone-500 mb-2">全域公告內容</label>
-               <textarea 
-                 value={systemAnnouncement} 
-                 onChange={(e) => setSystemAnnouncement(e.target.value)}
-                 placeholder="輸入顯示在 Dashboard 的公告..."
-                 className="w-full p-3 rounded-xl bg-stone-50 border border-stone-200 h-24 text-stone-700"
-               />
-             </div>
-             <button className="w-full bg-stone-800 text-white py-3 rounded-xl font-bold hover:bg-stone-700 transition-colors">
-               發布公告
-             </button>
+          <div className="flex-1 overflow-y-auto space-y-3 custom-scrollbar pr-2">
+             {data.announcements && data.announcements.length > 0 ? (
+               [...data.announcements].reverse().map(ann => (
+                 <div key={ann.id} className={`p-4 rounded-xl border transition-all ${ann.isActive ? 'bg-white border-amber-200 shadow-sm' : 'bg-stone-50 border-stone-100 opacity-70 hover:opacity-100'}`}>
+                    <div className="flex justify-between items-start mb-2">
+                       <div className="flex items-center gap-2">
+                          <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${
+                            ann.level === 'urgent' ? 'bg-red-100 text-red-600' : 
+                            ann.level === 'warning' ? 'bg-amber-100 text-amber-600' : 'bg-blue-100 text-blue-600'
+                          }`}>
+                            {ann.level}
+                          </span>
+                          <span className="text-xs text-stone-400">{new Date(ann.createdAt).toLocaleDateString()}</span>
+                       </div>
+                       
+                       <div className="flex gap-1">
+                          <button 
+                            onClick={() => onUpdateAnnouncement(ann.id, { isActive: !ann.isActive })}
+                            title={ann.isActive ? "下架" : "上架"}
+                            className={`p-1.5 rounded-lg ${ann.isActive ? 'text-emerald-500 hover:bg-emerald-50' : 'text-stone-300 hover:text-stone-500 hover:bg-stone-200'}`}
+                          >
+                            <Power size={14} />
+                          </button>
+                          <button 
+                            onClick={() => handleEditAnnouncement(ann)}
+                            title="編輯"
+                            className="p-1.5 text-stone-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg"
+                          >
+                            <Edit2 size={14} />
+                          </button>
+                          <button 
+                            onClick={() => { if(confirm("確定刪除此公告？")) onDeleteAnnouncement(ann.id); }}
+                            title="刪除"
+                            className="p-1.5 text-stone-400 hover:text-red-500 hover:bg-red-50 rounded-lg"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                       </div>
+                    </div>
+                    <p className={`text-sm font-medium line-clamp-2 ${ann.isActive ? 'text-stone-800' : 'text-stone-500'}`}>
+                      {ann.content}
+                    </p>
+                    {ann.isActive && <div className="mt-2 text-[10px] font-bold text-emerald-500 flex items-center gap-1"><Check size={10} /> 目前顯示中</div>}
+                 </div>
+               ))
+             ) : (
+               <div className="text-center py-10 text-stone-400 text-sm">尚無公告紀錄</div>
+             )}
           </div>
        </div>
     </div>

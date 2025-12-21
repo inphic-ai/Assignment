@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import { Task, TaskAllocation, User } from '../types';
-import { Clock, AlertTriangle, GripVertical, CheckCircle2, Briefcase, Plus, ChevronDown, ChevronUp, Play, Square, Users, Sunrise, Sun, Sunset, SortAsc, History, ChevronLeft, ChevronRight, Calendar } from 'lucide-react';
+import React, { useState, useRef } from 'react';
+import { Task, TaskAllocation, User, GoalCategory } from '../types';
+import { Clock, AlertTriangle, GripVertical, CheckCircle2, Briefcase, Plus, ChevronDown, ChevronUp, Play, Square, Users, Sunrise, Sun, Sunset, SortAsc, History, ChevronLeft, ChevronRight, Calendar, Layers, Tag, CalendarDays } from 'lucide-react';
 
 interface TimelineViewProps {
   tasks: Task[];
@@ -23,6 +23,9 @@ const TimelineView: React.FC<TimelineViewProps> = ({
   const [timeRange, setTimeRange] = useState<'all' | 'am' | 'pm'>('all');
   const [sortMethod, setSortMethod] = useState<'default' | 'time' | 'priority' | 'spent'>('default');
   const [currentDate, setCurrentDate] = useState(new Date());
+  
+  // Accordion State
+  const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({});
 
   const viewingUser = users.find(u => u.id === viewingUserId) || currentUser;
 
@@ -52,24 +55,21 @@ const TimelineView: React.FC<TimelineViewProps> = ({
 
   const handleDateChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.value) {
-      setCurrentDate(new Date(e.target.value));
+      // Create date from parts to avoid timezone issues with string parsing
+      const [year, month, day] = e.target.value.split('-').map(Number);
+      setCurrentDate(new Date(year, month - 1, day));
     }
   };
 
-  const openDatePicker = () => {
-    // Fallback for browsers that don't support clicking hidden input
-    const input = document.getElementById('timeline-date-picker') as HTMLInputElement;
-    if (input && 'showPicker' in HTMLInputElement.prototype) {
-      try {
-        (input as any).showPicker();
-      } catch (e) {
-        // Fallback or ignore
-      }
-    }
+  const jumpToToday = () => {
+    setCurrentDate(new Date());
+  };
+
+  const toggleGroup = (groupKey: string) => {
+    setExpandedGroups(prev => ({ ...prev, [groupKey]: !prev[groupKey] }));
   };
 
   // 1. Filter Tasks
-  // We only show tasks that are NOT scheduled and NOT done in the pool
   const dailyTasks = tasks.filter(t => t.assigneeId === viewingUserId && (t.timeType === 'misc' || t.timeType === 'daily') && t.status !== 'done' && !t.scheduledSlot);
   const longTasks = tasks.filter(t => t.assigneeId === viewingUserId && t.timeType === 'long' && t.status !== 'done');
 
@@ -77,12 +77,25 @@ const TimelineView: React.FC<TimelineViewProps> = ({
   const sortedDailyTasks = [...dailyTasks].sort((a, b) => {
     if (sortMethod === 'time') return b.timeValue - a.timeValue;
     if (sortMethod === 'spent') return (b.totalSpent || 0) - (a.totalSpent || 0);
-    // priority via goal logic or specific field if exists, using create time as fallback
     if (sortMethod === 'priority') return new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime();
-    return 0; // Default: Creation order usually
+    return 0; 
   });
 
-  // 2. Generate Time Slots based on User Settings
+  // Grouping Logic
+  const groupTasksByGoal = (taskList: Task[]) => {
+    const groups: Record<string, Task[]> = {};
+    taskList.forEach(t => {
+      const key = t.goal || '其他';
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(t);
+    });
+    return groups;
+  };
+
+  const dailyGroups = groupTasksByGoal(sortedDailyTasks);
+  const longGroups = groupTasksByGoal(longTasks);
+
+  // 2. Generate Time Slots
   const startHour = parseInt(viewingUser.workdayStart.split(':')[0]);
   const endHour = parseInt(viewingUser.workdayEnd.split(':')[0]);
   const allTimeSlots = Array.from({ length: endHour - startHour }, (_, i) => {
@@ -90,7 +103,6 @@ const TimelineView: React.FC<TimelineViewProps> = ({
     return `${hour.toString().padStart(2, '0')}:00`;
   });
 
-  // Filter Slots based on AM/PM selection
   const displayedSlots = allTimeSlots.filter(slot => {
     const hour = parseInt(slot.split(':')[0]);
     if (timeRange === 'am') return hour < 12;
@@ -98,23 +110,15 @@ const TimelineView: React.FC<TimelineViewProps> = ({
     return true;
   });
 
-  // 3. Helper to get items for a slot (Using selectedDateStr)
   const getSlotItems = (slot: string) => {
-    // Allocations for selected date starting at this slot
     const slotAllocations = allocations.filter(a => a.userId === viewingUserId && a.date === selectedDateStr && a.startTime === slot);
-    
-    // Legacy support for directly scheduled tasks (if any remain) - only show if scheduled for today/selected date logic applied? 
-    // Legacy `scheduledSlot` didn't have a date, so we assume it meant "Today". 
-    // To be safe, let's only show legacy scheduled tasks if we are viewing Today.
     const directTasks = isToday 
       ? tasks.filter(t => t.assigneeId === viewingUserId && t.scheduledSlot === slot && t.status !== 'done')
       : [];
-    
     return { directTasks, slotAllocations };
   };
 
   // --- Handlers ---
-
   const handleDragStart = (e: React.DragEvent, task: Task) => {
     e.dataTransfer.setData('taskId', task.id);
     e.dataTransfer.setData('type', task.timeType);
@@ -128,13 +132,11 @@ const TimelineView: React.FC<TimelineViewProps> = ({
 
     if (!task) return;
 
-    // --- STRICT DATE PROTECTION: ONLY TODAY ---
     if (!isToday) {
-      alert("時間分配限制：僅能將任務拖曳至「今日」進行計時！無法回到過去或預排未來。");
+      alert("時間分配限制：僅能將任務拖曳至「今日」進行計時！");
       return;
     }
 
-    // Check if slot is in the past hours of today
     const slotHour = parseInt(slot.split(':')[0]);
     const currentHour = new Date().getHours();
     
@@ -143,11 +145,9 @@ const TimelineView: React.FC<TimelineViewProps> = ({
       return;
     }
 
-    // Auto-Start Timing on Drop (Since it's strictly Today)
     const initialStatus: 'running' = 'running';
     const initialActualStart = new Date().toISOString();
 
-    // --- CONCURRENCY CHECK ---
     const runningCount = allocations.filter(a => a.userId === viewingUserId && a.status === 'running').length;
     if (runningCount >= 2) {
        alert("系統提醒：為確保專注，只能同時計時兩個工作！已取消本次拖曳。");
@@ -171,7 +171,6 @@ const TimelineView: React.FC<TimelineViewProps> = ({
         onAddAllocation(newAllocation);
       }
     } else {
-      // Misc/Daily tasks
       const newAllocation: TaskAllocation = {
           id: `alloc-${Date.now()}`,
           taskId: task.id,
@@ -187,7 +186,6 @@ const TimelineView: React.FC<TimelineViewProps> = ({
   };
 
   const handleStartAllocation = (allocId: string) => {
-     // Concurrency Check
      const runningCount = allocations.filter(a => a.userId === viewingUserId && a.status === 'running').length;
      if (runningCount >= 2) {
        alert("系統提醒：只能同時進行兩個計時工作！請先結束一個任務。");
@@ -198,9 +196,7 @@ const TimelineView: React.FC<TimelineViewProps> = ({
 
   const handleDragOver = (e: React.DragEvent) => e.preventDefault();
 
-  // --- 3 Minute Logic Implementation ---
   const handleRemoveAllocationLogic = (alloc: TaskAllocation) => {
-     // If planned, just delete
      if (alloc.status === 'planned' || !alloc.actualStartAt) {
         onRemoveAllocation(alloc.id);
         return;
@@ -211,23 +207,18 @@ const TimelineView: React.FC<TimelineViewProps> = ({
      const diffMinutes = (now.getTime() - start.getTime()) / (1000 * 60);
 
      if (diffMinutes < 3) {
-       // < 3 mins: Treat as mistake/cancel, no record
        onRemoveAllocation(alloc.id);
      } else {
-       // > 3 mins: Record as history
        const task = tasks.find(t => t.id === alloc.taskId);
        if (task) {
-          // 1. Update Task Total Spent
           onUpdateTask(task.id, { 
              totalSpent: (task.totalSpent || 0) + Math.round(diffMinutes) 
           });
        }
-
-       // 2. Mark allocation as done/stopped (History Block)
        onUpdateAllocation(alloc.id, {
           status: 'done',
           actualEndAt: now.toISOString(),
-          durationMinutes: Math.round(diffMinutes) // Resize block to actual time spent? Or just keep visual. Let's keep data accurate.
+          durationMinutes: Math.round(diffMinutes)
        });
      }
   };
@@ -250,8 +241,71 @@ const TimelineView: React.FC<TimelineViewProps> = ({
      });
   };
 
+  // --- Render Helpers ---
+  const renderAccordionGroup = (groupKey: string, groupTitle: string, groupTasks: Task[], theme: 'stone' | 'violet') => {
+    const isExpanded = expandedGroups[groupKey] !== false; // Default Open
+    const themeStyles = theme === 'violet' ? {
+      header: 'bg-violet-100/50 hover:bg-violet-100',
+      text: 'text-violet-800',
+      border: 'border-violet-200',
+      badge: 'bg-violet-200 text-violet-700',
+      card: 'border-violet-100 hover:border-violet-400'
+    } : {
+      header: 'bg-stone-100/50 hover:bg-stone-100',
+      text: 'text-stone-700',
+      border: 'border-stone-200',
+      badge: 'bg-stone-200 text-stone-600',
+      card: 'border-stone-100 hover:border-amber-300'
+    };
+
+    return (
+      <div key={groupKey} className="rounded-xl overflow-hidden border border-transparent">
+        <button 
+          onClick={() => toggleGroup(groupKey)}
+          className={`w-full flex items-center justify-between p-3 transition-colors ${themeStyles.header}`}
+        >
+          <div className="flex items-center gap-2">
+             <Tag size={14} className={themeStyles.text} />
+             <span className={`font-bold text-sm ${themeStyles.text}`}>{groupTitle}</span>
+             <span className={`text-xs px-1.5 py-0.5 rounded-full font-bold ${themeStyles.badge}`}>{groupTasks.length}</span>
+          </div>
+          {isExpanded ? <ChevronUp size={16} className={themeStyles.text} /> : <ChevronDown size={16} className={themeStyles.text} />}
+        </button>
+        
+        {isExpanded && (
+          <div className="space-y-2 p-2 pt-1 animate-in slide-in-from-top-2 duration-200">
+             {groupTasks.map(task => (
+                <div 
+                  key={task.id} 
+                  draggable 
+                  onDragStart={(e) => handleDragStart(e, task)}
+                  onClick={() => onSelectTask(task)}
+                  className={`bg-white p-3 rounded-xl border shadow-sm cursor-grab transition-all flex justify-between items-center hover:shadow-md group ${themeStyles.card}`}
+                >
+                   <div className="flex-1 min-w-0 mr-2">
+                     <div className="font-bold text-sm text-stone-700 truncate">{task.title}</div>
+                     {task.totalSpent && task.totalSpent > 0 ? (
+                        <div className="text-[10px] text-stone-400 flex items-center gap-1 mt-1">
+                          <History size={10} /> 已累計 {theme === 'violet' ? Math.round(task.totalSpent/60)+'小時' : task.totalSpent+'分'}
+                        </div>
+                     ) : null}
+                   </div>
+                   <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded whitespace-nowrap ${
+                     theme === 'violet' ? 'bg-violet-100 text-violet-700' :
+                     task.timeType === 'misc' ? 'bg-green-50 text-green-600' : 'bg-blue-50 text-blue-600'
+                   }`}>
+                     {task.timeValue}{task.timeType === 'misc' ? 'm' : task.timeType === 'daily' ? 'h' : '天'}
+                   </span>
+                </div>
+             ))}
+          </div>
+        )}
+      </div>
+    );
+  };
+
   return (
-    <div className="flex flex-col h-[calc(100vh-100px)] gap-4 animate-in fade-in duration-500 overflow-hidden">
+    <div className="flex flex-col gap-6 animate-in fade-in duration-500">
       <header className="flex flex-col md:flex-row justify-between items-center shrink-0 gap-4">
         <div>
            <h1 className="text-3xl font-bold text-stone-800">時間分配</h1>
@@ -259,35 +313,59 @@ const TimelineView: React.FC<TimelineViewProps> = ({
         </div>
         
         <div className="flex items-center gap-4">
-          
-          {/* Date Navigation - Fixed Click Target */}
           <div className="flex items-center bg-white p-1.5 rounded-xl border border-stone-200 shadow-sm relative">
              <button onClick={goToPrevDay} className="p-2 hover:bg-stone-100 rounded-lg text-stone-500 z-20"><ChevronLeft size={18} /></button>
              
-             {/* Reliable Date Picker Trigger */}
-             <div 
+             {/* Enhanced Date Picker Display */}
+             {/* Changed to label and added pointer-events-none to children to ensure input captures clicks */}
+             <label 
                className="flex items-center px-4 gap-2 relative group cursor-pointer h-full justify-center hover:bg-stone-50 rounded-lg transition-colors overflow-hidden"
-               onClick={openDatePicker}
+               title="點擊選擇日期 (年/月/日)"
              >
-               <Calendar size={18} className="text-amber-500 group-hover:text-amber-600" />
-               <span className="font-bold text-stone-700 text-sm whitespace-nowrap group-hover:text-stone-900">
-                 {isToday ? '今天' : ''} {currentDate.toLocaleDateString('zh-TW', { month: 'long', day: 'numeric', weekday: 'short' })}
-               </span>
+               {/* Visuals - pointer-events-none lets click pass through to input */}
+               <div className="flex items-center gap-2 pointer-events-none relative z-0">
+                 <CalendarDays size={18} className="text-amber-500 group-hover:text-amber-600" />
+                 <div className="flex flex-col items-center">
+                   <span className="font-bold text-stone-700 text-sm whitespace-nowrap group-hover:text-stone-900 leading-tight">
+                     {currentDate.toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' })}
+                   </span>
+                   <span className="text-[10px] text-stone-400 font-medium leading-tight">
+                     {currentDate.toLocaleDateString('zh-TW', { weekday: 'long' })}
+                   </span>
+                 </div>
+               </div>
+               
+               {/* Overlay Input: Covers the entire parent label and sits on top (z-20) */}
                <input 
-                 id="timeline-date-picker"
                  type="date" 
                  value={selectedDateStr} 
-                 onChange={handleDateChange}
-                 className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10" 
+                 onChange={handleDateChange} 
+                 onClick={(e) => {
+                    // Force showPicker on click (especially for Desktop where text focus might happen instead)
+                    try {
+                      if ('showPicker' in HTMLInputElement.prototype) {
+                        (e.target as HTMLInputElement).showPicker();
+                      }
+                    } catch (error) {
+                      // Fallback: Default input behavior handles click
+                    }
+                 }}
+                 className="absolute inset-0 w-full h-full opacity-0 z-20 cursor-pointer" 
                />
-             </div>
+             </label>
 
              <button onClick={goToNextDay} className="p-2 hover:bg-stone-100 rounded-lg text-stone-500 z-20"><ChevronRight size={18} /></button>
           </div>
 
-          <div className="w-px h-8 bg-stone-200 hidden md:block"></div>
+          {!isToday && (
+            <button 
+              onClick={jumpToToday}
+              className="px-3 py-2 bg-amber-100 text-amber-700 rounded-xl text-xs font-bold hover:bg-amber-200 transition-colors shadow-sm"
+            >
+              回今天
+            </button>
+          )}
 
-          {/* Time Range Toggle */}
           <div className="flex bg-stone-100 p-1 rounded-xl">
              <button onClick={() => setTimeRange('all')} className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 transition-all ${timeRange === 'all' ? 'bg-white shadow-sm text-stone-800' : 'text-stone-400 hover:text-stone-600'}`}>
                <Clock size={14} /> 全天
@@ -300,36 +378,27 @@ const TimelineView: React.FC<TimelineViewProps> = ({
              </button>
           </div>
 
-          {/* User Switcher (Admin Only) */}
           {currentUser.role === 'admin' && (
             <div className="flex items-center gap-3 bg-white p-2 rounded-xl border border-stone-200 shadow-sm">
-              <div className="w-8 h-8 rounded-full bg-stone-800 flex items-center justify-center text-white">
-                <Users size={16} />
-              </div>
-              <select 
-                value={viewingUserId}
-                onChange={(e) => onSwitchUser(e.target.value)}
-                className="bg-transparent font-bold text-stone-700 outline-none text-sm pr-2 cursor-pointer"
-              >
-                {users.map(u => (
-                  <option key={u.id} value={u.id}>{u.name} {u.id === currentUser.id ? '(我)' : ''}</option>
-                ))}
+              <div className="w-8 h-8 rounded-full bg-stone-800 flex items-center justify-center text-white"><Users size={16} /></div>
+              <select value={viewingUserId} onChange={(e) => onSwitchUser(e.target.value)} className="bg-transparent font-bold text-stone-700 outline-none text-sm pr-2 cursor-pointer">
+                {users.map(u => (<option key={u.id} value={u.id}>{u.name} {u.id === currentUser.id ? '(我)' : ''}</option>))}
               </select>
             </div>
           )}
         </div>
       </header>
 
-      <div className="flex flex-col lg:flex-row gap-6 flex-1 min-h-0">
+      <div className="flex flex-col lg:flex-row gap-6">
         
-        {/* LEFT SIDEBAR: TASK POOLS */}
-        <div className="lg:w-1/3 flex flex-col gap-4 min-w-[300px]">
+        {/* LEFT SIDEBAR: TASK POOLS (No Scroll container, expands fully) */}
+        <div className="lg:w-1/3 flex flex-col gap-6 min-w-[300px]">
+           
            {/* 1. Unscheduled Daily/Misc */}
-           <div className="flex-1 bg-stone-50 rounded-[1.5rem] border border-stone-200 flex flex-col min-w-0 overflow-hidden shadow-sm">
+           <div className="bg-stone-50 rounded-[1.5rem] border border-stone-200 shadow-sm overflow-hidden h-fit">
               <div className="p-4 bg-stone-100/50 border-b border-stone-200 flex justify-between items-center">
                  <h4 className="font-bold text-stone-600 flex items-center gap-2 text-sm">
-                    待排程 (零碎/當日)
-                    <span className="bg-stone-200 px-2 rounded-full text-xs">{sortedDailyTasks.length}</span>
+                    <Layers size={16} /> 待排程 ({sortedDailyTasks.length})
                  </h4>
                  {/* Sort Controls */}
                  <div className="relative group">
@@ -340,82 +409,44 @@ const TimelineView: React.FC<TimelineViewProps> = ({
                        <button onClick={() => setSortMethod('default')} className="w-full text-left px-3 py-2 text-xs hover:bg-stone-50 rounded-lg text-stone-600">預設排序</button>
                        <button onClick={() => setSortMethod('priority')} className="w-full text-left px-3 py-2 text-xs hover:bg-stone-50 rounded-lg text-stone-600">依截止日</button>
                        <button onClick={() => setSortMethod('time')} className="w-full text-left px-3 py-2 text-xs hover:bg-stone-50 rounded-lg text-stone-600">依時長</button>
-                       <button onClick={() => setSortMethod('spent')} className="w-full text-left px-3 py-2 text-xs hover:bg-stone-50 rounded-lg text-stone-600">依已花費</button>
                     </div>
                  </div>
               </div>
               
-              <div className="flex-1 overflow-y-auto space-y-2 p-3">
-                 {sortedDailyTasks.map(task => (
-                   <div 
-                     key={task.id} 
-                     draggable 
-                     onDragStart={(e) => handleDragStart(e, task)}
-                     onClick={() => onSelectTask(task)}
-                     className="bg-white p-3 rounded-xl border border-stone-100 shadow-sm cursor-grab hover:border-amber-300 transition-all flex justify-between items-center hover:shadow-md group"
-                   >
-                      <div className="flex-1 min-w-0 mr-2">
-                        <div className="font-bold text-sm text-stone-700 truncate">{task.title}</div>
-                        {task.totalSpent && task.totalSpent > 0 ? (
-                           <div className="text-[10px] text-stone-400 flex items-center gap-1 mt-1">
-                             <History size={10} /> 已累計 {task.totalSpent} 分
-                           </div>
-                        ) : null}
-                      </div>
-                      <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded whitespace-nowrap ${task.timeType === 'misc' ? 'bg-green-50 text-green-600' : 'bg-blue-50 text-blue-600'}`}>
-                        {task.timeValue}{task.timeType === 'misc' ? 'm' : 'h'}
-                      </span>
-                   </div>
-                 ))}
-                 {sortedDailyTasks.length === 0 && (
+              <div className="p-3 space-y-2">
+                 {Object.keys(dailyGroups).length > 0 ? (
+                   Object.entries(dailyGroups).map(([goal, groupTasks]) => 
+                     renderAccordionGroup(`daily-${goal}`, goal, groupTasks, 'stone')
+                   )
+                 ) : (
                    <div className="text-center py-8 text-stone-300 text-sm">無待排程任務</div>
                  )}
               </div>
            </div>
 
            {/* 2. Long Task Library */}
-           <div className="flex-1 bg-violet-50 rounded-[1.5rem] border border-violet-100 flex flex-col min-w-0 overflow-hidden shadow-sm">
+           <div className="bg-violet-50 rounded-[1.5rem] border border-violet-100 shadow-sm overflow-hidden h-fit">
               <div className="p-4 bg-violet-100/50 border-b border-violet-200 flex justify-between items-center">
                  <h4 className="font-bold text-violet-800 flex items-center gap-2 text-sm">
-                    長期任務庫 (切片)
-                    <span className="bg-violet-200/50 px-2 rounded-full text-xs">{longTasks.length}</span>
+                    <Briefcase size={16} /> 長期任務庫 ({longTasks.length})
                  </h4>
               </div>
               
-              <div className="flex-1 overflow-y-auto space-y-2 p-3">
-                 {longTasks.map(task => (
-                   <div 
-                     key={task.id} 
-                     draggable 
-                     onDragStart={(e) => handleDragStart(e, task)}
-                     onClick={() => onSelectTask(task)}
-                     className="bg-white p-3 rounded-xl border border-violet-100 shadow-sm cursor-grab hover:border-violet-400 transition-all group hover:shadow-md"
-                   >
-                      <div className="flex justify-between items-center">
-                         <div className="flex-1 min-w-0 mr-2">
-                            <div className="font-bold text-sm text-stone-700 truncate">{task.title}</div>
-                            {task.totalSpent && task.totalSpent > 0 ? (
-                               <div className="text-[10px] text-stone-400 flex items-center gap-1 mt-1">
-                                 <History size={10} /> 已累計 {Math.round(task.totalSpent / 60)} 小時
-                               </div>
-                            ) : null}
-                         </div>
-                         <span className="text-[10px] font-bold bg-violet-100 text-violet-700 px-1.5 py-0.5 rounded whitespace-nowrap">
-                           {task.timeValue} 天
-                         </span>
-                      </div>
-                   </div>
-                 ))}
-                 {longTasks.length === 0 && (
+              <div className="p-3 space-y-2">
+                 {Object.keys(longGroups).length > 0 ? (
+                   Object.entries(longGroups).map(([goal, groupTasks]) => 
+                     renderAccordionGroup(`long-${goal}`, goal, groupTasks, 'violet')
+                   )
+                 ) : (
                     <div className="text-center py-8 text-violet-300 text-sm">無長期任務</div>
                  )}
               </div>
            </div>
         </div>
 
-        {/* RIGHT MAIN BLOCK: SELECTED DATE TIMELINE */}
-        <div className="flex-1 bg-white rounded-[2rem] border border-stone-200 shadow-lg overflow-hidden flex flex-col relative h-full">
-           <div className="p-4 bg-stone-50 border-b border-stone-100 flex justify-between items-center shrink-0 z-10">
+        {/* RIGHT MAIN BLOCK: SELECTED DATE TIMELINE (Full Height/Content) */}
+        <div className="flex-1 bg-white rounded-[2rem] border border-stone-200 shadow-lg flex flex-col relative h-fit pb-10">
+           <div className="p-4 bg-stone-50 border-b border-stone-100 flex justify-between items-center shrink-0 rounded-t-[2rem]">
               <h3 className="font-bold text-stone-700 flex items-center gap-2">
                 <Clock size={20} className="text-amber-500" /> 
                 {isToday ? '今日' : `${currentDate.getMonth()+1}/${currentDate.getDate()}`} 時間軸
@@ -425,7 +456,7 @@ const TimelineView: React.FC<TimelineViewProps> = ({
               </span>
            </div>
            
-           <div className="flex-1 overflow-y-auto p-6 space-y-2">
+           <div className="p-6 space-y-2">
               {displayedSlots.map(slot => {
                 const { directTasks, slotAllocations } = getSlotItems(slot);
                 
@@ -448,7 +479,7 @@ const TimelineView: React.FC<TimelineViewProps> = ({
 
                       <div className="space-y-3 relative z-10 pl-2">
                          
-                         {/* 1. Direct Tasks (Legacy - Only show on Today for safety) */}
+                         {/* 1. Direct Tasks */}
                          {directTasks.map(task => (
                            <div key={task.id} draggable onDragStart={(e) => handleDragStart(e, task)} className="bg-white border border-stone-200 p-4 rounded-2xl flex justify-between items-center shadow-sm hover:shadow-lg cursor-grab active:cursor-grabbing hover:border-amber-200 transition-all opacity-60">
                               <div className="flex items-center gap-4">
@@ -466,16 +497,15 @@ const TimelineView: React.FC<TimelineViewProps> = ({
                            </div>
                          ))}
 
-                         {/* 2. Allocations (Time Slices) - With Logic */}
+                         {/* 2. Allocations */}
                          {slotAllocations.map(alloc => {
                            const parentTask = tasks.find(t => t.id === alloc.taskId);
                            if (!parentTask) return null;
 
-                           // Status Styles
                            const statusStyles = {
                              planned: 'bg-violet-50 border-violet-100 text-violet-700',
                              running: 'bg-amber-50 border-amber-200 text-amber-700 animate-pulse border-2 shadow-lg',
-                             done: 'bg-stone-100 border-stone-200 text-stone-500 grayscale opacity-80', // History look
+                             done: 'bg-stone-100 border-stone-200 text-stone-500 grayscale opacity-80',
                              missed: 'bg-red-50 border-red-100 text-red-700',
                              overrun: 'bg-red-100 border-red-300 text-red-800'
                            };
@@ -499,27 +529,19 @@ const TimelineView: React.FC<TimelineViewProps> = ({
                                    </div>
                                 </div>
                                 
-                                {/* Execution Controls */}
                                 <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                                  {/* Start Button (If planned) */}
                                   {alloc.status === 'planned' && (
                                     <button onClick={() => handleStartAllocation(alloc.id)} className="flex items-center gap-1 bg-white text-emerald-600 px-3 py-1.5 rounded-lg font-bold hover:bg-emerald-50 shadow-sm">
                                       <Play size={16} fill="currentColor" /> 開始
                                     </button>
                                   )}
-                                  
-                                  {/* Stop Button (If running) */}
                                   {alloc.status === 'running' && (
                                     <button onClick={() => handleStopAllocation(alloc)} className="flex items-center gap-1 bg-white text-red-500 px-3 py-1.5 rounded-lg font-bold hover:bg-red-50 shadow-sm">
                                       <Square size={16} fill="currentColor" /> 結束
                                     </button>
                                   )}
-
-                                  {/* Remove / Cancel */}
                                   {alloc.status !== 'done' && (
-                                     <button onClick={() => handleRemoveAllocationLogic(alloc)} className="text-sm opacity-50 hover:opacity-100 hover:text-red-600 px-2 transition-opacity">
-                                       移除
-                                     </button>
+                                     <button onClick={() => handleRemoveAllocationLogic(alloc)} className="text-sm opacity-50 hover:opacity-100 hover:text-red-600 px-2 transition-opacity">移除</button>
                                   )}
                                 </div>
                              </div>

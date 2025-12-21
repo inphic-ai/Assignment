@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Task, Project, ViewMode, TaskStatus, User } from '../types';
-import { Calendar, Zap, Target, MoreHorizontal, CheckSquare, Square, FileText, Sun, Briefcase, Paperclip, GripHorizontal, User as UserIcon, AlertCircle, Clock, Inbox, Plus } from 'lucide-react';
+import { Calendar, Zap, Target, MoreHorizontal, CheckSquare, Square, FileText, Sun, Briefcase, Paperclip, GripHorizontal, User as UserIcon, AlertCircle, Clock, Inbox, Plus, ArrowUp, ArrowDown } from 'lucide-react';
 import { convertToHours } from '../constants';
 
 interface TaskViewsProps {
@@ -22,27 +22,70 @@ const TaskViews: React.FC<TaskViewsProps> = ({
   onUpdateTask, onSelectProject, onSelectTask, onProjectReorder, onCreateProject
 }) => {
   const [filter, setFilter] = useState<TaskStatus | 'all'>('all');
+  
+  // Sorting State
+  const [sortConfig, setSortConfig] = useState<{ key: 'default' | 'createdAt' | 'dueAt', direction: 'asc' | 'desc' }>({ 
+    key: 'default', 
+    direction: 'asc' 
+  });
 
   // Sort projects by order
   const sortedProjects = [...projects].sort((a, b) => a.projectOrder - b.projectOrder);
 
   const filteredTasks = tasks.filter(t => filter === 'all' || t.status === filter);
   
+  // 1. Status Priority Map (Lower number = Higher priority in sort)
   const statusPriority: Record<TaskStatus, number> = {
-    'todo': 0, 'doing': 1, 'submitted': 2, 'done': 3, 'archived': 4
+    'todo': 0,
+    'doing': 1,
+    'submitted': 2,
+    'done': 3,
+    'archived': 4
   };
 
+  // 2. Sorting Logic
   const sortedTasks = [...filteredTasks].sort((a, b) => {
+    // Check for explicit sort columns
+    if (sortConfig.key === 'createdAt') {
+      const dateA = new Date(a.createdAt).getTime();
+      const dateB = new Date(b.createdAt).getTime();
+      return sortConfig.direction === 'asc' ? dateA - dateB : dateB - dateA;
+    }
+
+    if (sortConfig.key === 'dueAt') {
+      const dateA = new Date(a.dueAt).getTime();
+      const dateB = new Date(b.dueAt).getTime();
+      return sortConfig.direction === 'asc' ? dateA - dateB : dateB - dateA;
+    }
+
+    // Default Sort Logic (Status -> Due -> Created)
+    // Primary: Status (Todo > Doing > Submitted > Done > Archived)
     const statusDiff = statusPriority[a.status] - statusPriority[b.status];
     if (statusDiff !== 0) return statusDiff;
+    
+    // Secondary: Due Date (Ascending - Earliest first)
     const dueA = new Date(a.dueAt).getTime();
     const dueB = new Date(b.dueAt).getTime();
     const dueDiff = dueA - dueB;
     if (dueDiff !== 0) return dueDiff;
+    
+    // Tertiary: Created Date (Descending - Newest first)
     const createdA = new Date(a.createdAt).getTime();
     const createdB = new Date(b.createdAt).getTime();
     return createdB - createdA;
   });
+
+  const handleSort = (key: 'createdAt' | 'dueAt') => {
+    setSortConfig(prev => ({
+      key,
+      direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc'
+    }));
+  };
+
+  const getSortIcon = (key: 'createdAt' | 'dueAt') => {
+    if (sortConfig.key !== key) return null;
+    return sortConfig.direction === 'asc' ? <ArrowUp size={12} /> : <ArrowDown size={12} />;
+  };
 
   const getStatusColor = (status: TaskStatus) => {
     switch(status) {
@@ -268,11 +311,37 @@ const TaskViews: React.FC<TaskViewsProps> = ({
           <tr>
             <th className="p-5 rounded-l-xl w-12"></th>
             <th className="p-5">任務名稱</th>
-            <th className="p-5 w-32">類型</th>
-            <th className="p-5 w-32">目標</th>
-            <th className="p-5 w-32">負責人</th>
-            <th className="p-5 w-40">截止</th>
-            <th className="p-5 w-32">狀態</th>
+            <th className="p-5 w-24">類型</th>
+            <th className="p-5 w-24">目標</th>
+            <th className="p-5 w-24">負責人</th>
+            
+            {/* Clickable Header for Created At */}
+            <th 
+              className="p-5 w-32 cursor-pointer hover:bg-stone-100 transition-colors group select-none"
+              onClick={() => handleSort('createdAt')}
+            >
+              <div className="flex items-center gap-1">
+                建立
+                <span className={`opacity-0 group-hover:opacity-100 transition-opacity ${sortConfig.key === 'createdAt' ? 'opacity-100 text-amber-500' : ''}`}>
+                  {sortConfig.key === 'createdAt' ? getSortIcon('createdAt') : <ArrowDown size={12} className="text-stone-300" />}
+                </span>
+              </div>
+            </th>
+
+            {/* Clickable Header for Due At */}
+            <th 
+              className="p-5 w-32 cursor-pointer hover:bg-stone-100 transition-colors group select-none"
+              onClick={() => handleSort('dueAt')}
+            >
+              <div className="flex items-center gap-1">
+                截止
+                <span className={`opacity-0 group-hover:opacity-100 transition-opacity ${sortConfig.key === 'dueAt' ? 'opacity-100 text-amber-500' : ''}`}>
+                  {sortConfig.key === 'dueAt' ? getSortIcon('dueAt') : <ArrowDown size={12} className="text-stone-300" />}
+                </span>
+              </div>
+            </th>
+
+            <th className="p-5 w-28">狀態</th>
             <th className="p-5 rounded-r-xl w-12"></th>
           </tr>
         </thead>
@@ -322,12 +391,22 @@ const TaskViews: React.FC<TaskViewsProps> = ({
                      <span className="text-xs font-medium text-stone-600">{getUserName(task.assigneeId)}</span>
                    </div>
                 </td>
+                
+                {/* Created At Column */}
+                <td className="p-5">
+                   <div className="text-xs font-mono text-stone-400">
+                     {new Date(task.createdAt).toLocaleDateString()}
+                   </div>
+                </td>
+
+                {/* Due At Column */}
                 <td className="p-5">
                    <div className={`text-xs font-mono flex items-center gap-1 ${isOverdue ? 'text-red-600 font-bold' : 'text-stone-400'}`}>
                      {isOverdue && <AlertCircle size={12} />}
                      {new Date(task.dueAt).toLocaleDateString()}
                    </div>
                 </td>
+                
                 <td className="p-5">
                    <span className={`text-[10px] px-2 py-1 rounded font-bold ${getStatusColor(task.status)}`}>
                      {getStatusLabel(task.status)}
@@ -359,8 +438,6 @@ const TaskViews: React.FC<TaskViewsProps> = ({
         tasks.some(t => t.projectId === p.id)
       )
     );
-
-    // REMOVED Inbox logic here per user request. Project view only shows Projects.
     
     return (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">

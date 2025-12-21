@@ -7,9 +7,9 @@ import TaskDetailModal from './components/TaskDetailModal';
 import AdminCenter from './components/AdminCenter';
 import TimelineView from './components/TimelineView';
 import KnowledgeBase from './components/KnowledgeBase';
-import { NavTab, Task, Project, ViewMode, AppState, GoalCategory, User, LogEntry, TaskAllocation, TaskStatus, LoginLogEntry, TimeType, RoleType } from './types';
+import { NavTab, Task, Project, ViewMode, AppState, GoalCategory, User, LogEntry, TaskAllocation, TaskStatus, LoginLogEntry, TimeType, RoleType, AnnouncementLevel, Announcement } from './types';
 import { INITIAL_GOALS, VIEW_MODES, generateId, convertToHours } from './constants';
-import { Search, SlidersHorizontal, ArrowLeft, Filter, X, User as UserIcon, Briefcase, Clock, Target, RotateCcw, Zap, Sun, Calendar } from 'lucide-react';
+import { Search, SlidersHorizontal, ArrowLeft, Filter, X, User as UserIcon, Briefcase, Clock, Target, RotateCcw, Zap, Sun, Calendar, Edit2, Check, Megaphone, Bell, Info, AlertTriangle, History } from 'lucide-react';
 
 const MOCK_USERS: User[] = [
   { 
@@ -41,7 +41,24 @@ const App = () => {
   // Persistence
   const [data, setData] = useState<AppState>(() => {
     const saved = localStorage.getItem('chronos_data_v8');
-    if (saved) return JSON.parse(saved);
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      // Migration: Ensure 'announcements' array exists if old version
+      if (!parsed.announcements) {
+        parsed.announcements = [];
+        if (parsed.systemAnnouncement) {
+          parsed.announcements.push({
+            id: 'ann-init',
+            content: parsed.systemAnnouncement,
+            level: parsed.systemAnnouncementLevel || 'info',
+            createdAt: new Date().toISOString(),
+            createdBy: 'u1',
+            isActive: true
+          });
+        }
+      }
+      return parsed;
+    }
     return {
       tasks: [],
       projects: [],
@@ -50,7 +67,8 @@ const App = () => {
       loginLogs: MOCK_LOGIN_LOGS,
       users: MOCK_USERS,
       currentUser: MOCK_USERS[0],
-      allocations: []
+      allocations: [],
+      announcements: []
     };
   });
 
@@ -64,6 +82,10 @@ const App = () => {
   const [selectedTask, setSelectedTask] = useState<Task | null>(null);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   const [isProjectCreation, setIsProjectCreation] = useState(false);
+
+  // Project Editing State
+  const [isEditingProject, setIsEditingProject] = useState(false);
+  const [editProjectData, setEditProjectData] = useState({ name: '', description: '' });
 
   // Filters State
   const [showFilters, setShowFilters] = useState(false);
@@ -83,6 +105,12 @@ const App = () => {
   useEffect(() => {
     localStorage.setItem('chronos_data_v8', JSON.stringify(data));
   }, [data]);
+
+  // --- DERIVED STATE ---
+  // Get the most recent active announcement
+  const activeAnnouncement = data.announcements
+    .filter(a => a.isActive)
+    .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())[0];
 
   // --- FILTERING LOGIC ---
   const activeTasks = data.tasks.filter(t => !t.deletedAt);
@@ -124,7 +152,7 @@ const App = () => {
   // --- LOGGING ---
   const logOperation = (
     action: 'CREATE' | 'READ' | 'UPDATE' | 'DELETE' | 'SUBMIT' | 'APPROVE' | 'REJECT' | 'RESTORE',
-    target: 'TASK' | 'PROJECT' | 'GOAL' | 'USER' | 'KNOWLEDGE' | 'ALLOCATION',
+    target: 'TASK' | 'PROJECT' | 'GOAL' | 'USER' | 'KNOWLEDGE' | 'ALLOCATION' | 'ANNOUNCEMENT',
     details: string
   ) => {
     const newLog: LogEntry = {
@@ -142,7 +170,10 @@ const App = () => {
 
   const handleNavigate = (tab: NavTab) => {
     setCurrentTab(tab);
+    // CRITICAL FIX: Only reset ID if we are NOT intentionally going to a project detail via other means.
+    // However, clicking the sidebar tab "Project Tasks" SHOULD reset to list view.
     setSelectedProjectId(null);
+    
     // Smart View Mode Defaults
     if (tab === 'projects') {
       setViewMode('group'); // Default to Group view for Projects List
@@ -257,6 +288,20 @@ const App = () => {
     if (selectedTask?.id === id) setSelectedTask(updatedTask);
   };
 
+  const handleUpdateProject = (id: string, updates: Partial<Project>) => {
+    const project = data.projects.find(p => p.id === id);
+    if (!project) return;
+    
+    const log = logOperation('UPDATE', 'PROJECT', `更新專案資訊: ${project.name}`);
+    
+    setData(prev => ({
+      ...prev,
+      projects: prev.projects.map(p => p.id === id ? { ...p, ...updates } : p),
+      logs: [...prev.logs, log]
+    }));
+    setIsEditingProject(false);
+  };
+
   const handleProjectReorder = (dragIndex: number, hoverIndex: number) => {
     const sortedProjects = [...data.projects].sort((a, b) => a.projectOrder - b.projectOrder);
     const itemToMove = sortedProjects[dragIndex];
@@ -346,6 +391,60 @@ const App = () => {
     setData(prev => ({
       ...prev,
       allocations: prev.allocations.filter(a => a.id !== id),
+      logs: [...prev.logs, log]
+    }));
+  };
+  
+  // --- ANNOUNCEMENT ACTIONS ---
+  const handleCreateAnnouncement = (content: string, level: AnnouncementLevel) => {
+    const newAnn: Announcement = {
+      id: generateId('ANN'),
+      content,
+      level,
+      createdAt: new Date().toISOString(),
+      createdBy: data.currentUser.id,
+      isActive: true // Auto activate new ones
+    };
+    
+    const log = logOperation('CREATE', 'ANNOUNCEMENT', `發布公告: ${content.substring(0, 10)}...`);
+    
+    setData(prev => ({
+      ...prev,
+      // Deactivate others? Or allow multiple? Layout currently best supports one.
+      // Let's deactivate others to keep it clean for MVP.
+      announcements: [newAnn, ...prev.announcements.map(a => ({...a, isActive: false}))],
+      logs: [...prev.logs, log]
+    }));
+  };
+
+  const handleUpdateAnnouncement = (id: string, updates: Partial<Announcement>) => {
+    const ann = data.announcements.find(a => a.id === id);
+    if(!ann) return;
+
+    const log = logOperation('UPDATE', 'ANNOUNCEMENT', `更新公告: ${ann.content.substring(0, 10)}...`);
+    
+    // If activating this one, deactivate others
+    let updatedList = data.announcements.map(a => {
+      if (a.id === id) return { ...a, ...updates };
+      if (updates.isActive) return { ...a, isActive: false };
+      return a;
+    });
+
+    setData(prev => ({
+      ...prev,
+      announcements: updatedList,
+      logs: [...prev.logs, log]
+    }));
+  };
+
+  const handleDeleteAnnouncement = (id: string) => {
+    const ann = data.announcements.find(a => a.id === id);
+    if(!ann) return;
+    const log = logOperation('DELETE', 'ANNOUNCEMENT', `刪除公告: ${ann.content.substring(0, 10)}...`);
+    
+    setData(prev => ({
+      ...prev,
+      announcements: prev.announcements.filter(a => a.id !== id),
       logs: [...prev.logs, log]
     }));
   };
@@ -443,6 +542,12 @@ const App = () => {
       const projectTasks = activeTasks.filter(t => t.projectId === selectedProjectId);
       const totalHrs = projectTasks.reduce((acc, t) => acc + convertToHours(t.timeValue, t.timeType), 0);
 
+      const handleSaveProject = () => {
+        if(selectedProjectId && editProjectData.name) {
+          handleUpdateProject(selectedProjectId, editProjectData);
+        }
+      };
+
       return (
         <div className="space-y-6">
            {/* Detail Header with View Switcher */}
@@ -466,12 +571,52 @@ const App = () => {
              </div>
            </div>
            
-           {/* Project Info Header */}
-           <div className="bg-white p-8 rounded-[2rem] border border-stone-200 shadow-sm">
+           {/* Project Info Header (With Edit Support) */}
+           <div className="bg-white p-8 rounded-[2rem] border border-stone-200 shadow-sm relative group">
              <div className="flex justify-between items-start">
-               <div>
-                  <h1 className="text-3xl font-bold text-stone-800">{project?.name}</h1>
-                  <p className="text-stone-500 mt-2">{project?.description}</p>
+               <div className="flex-1 mr-8">
+                  {isEditingProject ? (
+                    <div className="space-y-3">
+                       <input 
+                         value={editProjectData.name}
+                         onChange={(e) => setEditProjectData(prev => ({...prev, name: e.target.value}))}
+                         className="text-3xl font-bold text-stone-800 w-full border border-orange-200 rounded-lg px-2 py-1 focus:ring-2 focus:ring-orange-500 outline-none"
+                         placeholder="專案名稱"
+                       />
+                       <textarea 
+                         value={editProjectData.description}
+                         onChange={(e) => setEditProjectData(prev => ({...prev, description: e.target.value}))}
+                         className="text-stone-600 w-full border border-orange-200 rounded-lg px-2 py-2 focus:ring-2 focus:ring-orange-500 outline-none h-20"
+                         placeholder="專案描述..."
+                       />
+                       <div className="flex gap-2">
+                         <button onClick={handleSaveProject} className="flex items-center gap-1 bg-emerald-500 text-white px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-emerald-600">
+                           <Check size={16} /> 儲存
+                         </button>
+                         <button onClick={() => setIsEditingProject(false)} className="flex items-center gap-1 bg-stone-200 text-stone-600 px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-stone-300">
+                           <X size={16} /> 取消
+                         </button>
+                       </div>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-3">
+                        <h1 className="text-3xl font-bold text-stone-800">{project?.name}</h1>
+                        <button 
+                          onClick={() => {
+                            if(project) {
+                              setEditProjectData({ name: project.name, description: project.description });
+                              setIsEditingProject(true);
+                            }
+                          }}
+                          className="opacity-0 group-hover:opacity-100 p-2 text-stone-400 hover:text-stone-600 hover:bg-stone-100 rounded-full transition-all"
+                        >
+                          <Edit2 size={18} />
+                        </button>
+                      </div>
+                      <p className="text-stone-500 mt-2">{project?.description}</p>
+                    </>
+                  )}
                </div>
                <div className="text-right">
                   <p className="text-xs font-bold text-stone-400 uppercase">總投入</p>
@@ -542,7 +687,11 @@ const App = () => {
               if (filter.timeType) {
                 setFilterType(filter.timeType);
               }
-              handleNavigate('daily');
+              // To go to Daily view tasks, we use setCurrentTab. 
+              // handleNavigate is safer as it resets selection
+              setCurrentTab('daily');
+              setSelectedProjectId(null);
+              if (viewMode === 'group') setViewMode('grid');
             }}
             onOpenCreate={() => { setIsProjectCreation(false); setShowCreateModal(true); }}
           />
@@ -600,7 +749,11 @@ const App = () => {
               users={data.users}
               viewMode={viewMode} 
               onUpdateTask={handleUpdateTask}
-              onSelectProject={(id) => { setSelectedProjectId(id); handleNavigate('projects'); }}
+              onSelectProject={(id) => { 
+                // Navigate to Projects Tab and Select Project
+                setCurrentTab('projects');
+                setSelectedProjectId(id);
+              }}
               onSelectTask={setSelectedTask} 
             />
           </div>
@@ -650,7 +803,7 @@ const App = () => {
                 viewMode="group" // Forced Group Mode
                 searchTerm={searchTerm}
                 onUpdateTask={handleUpdateTask}
-                onSelectProject={(id) => { setSelectedProjectId(id); handleNavigate('projects'); }}
+                onSelectProject={(id) => { setSelectedProjectId(id); }}
                 onSelectTask={setSelectedTask}
                 onProjectReorder={handleProjectReorder}
                 onCreateProject={handleCreateProject}
@@ -683,6 +836,133 @@ const App = () => {
             onSelectTask={setSelectedTask} 
           />
         );
+
+      case 'announcement':
+        // Determine styles based on level
+        const annLevel = activeAnnouncement?.level || 'info';
+        let annStyles = {
+          bg: 'bg-stone-50',
+          border: 'border-stone-100',
+          title: 'text-stone-800',
+          iconColor: 'text-blue-600',
+          iconBg: 'bg-blue-100',
+          icon: Info,
+          label: '一般通知'
+        };
+
+        if (annLevel === 'urgent') {
+          annStyles = {
+            bg: 'bg-red-50',
+            border: 'border-red-100',
+            title: 'text-red-900',
+            iconColor: 'text-red-600',
+            iconBg: 'bg-red-100',
+            icon: AlertTriangle,
+            label: '緊急通知'
+          };
+        } else if (annLevel === 'warning') {
+          annStyles = {
+            bg: 'bg-amber-50',
+            border: 'border-amber-100',
+            title: 'text-amber-900',
+            iconColor: 'text-amber-600',
+            iconBg: 'bg-amber-100',
+            icon: Megaphone,
+            label: '重要提醒'
+          };
+        }
+
+        return (
+          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-2">
+             <header>
+               <h1 className="text-3xl font-bold text-stone-800 mb-2">系統公告</h1>
+               <p className="text-stone-500 font-medium">查看最新消息與系統通知</p>
+             </header>
+
+             {/* Current Active Announcement Card */}
+             <div className={`rounded-[2.5rem] p-10 border shadow-lg relative overflow-hidden ${annStyles.bg} ${annStyles.border}`}>
+                {/* Background Decoration */}
+                <div className="absolute top-0 right-0 p-8 opacity-5">
+                   <annStyles.icon size={200} />
+                </div>
+                
+                <div className="relative z-10">
+                  <div className="flex items-center gap-4 mb-8">
+                     <div className={`w-16 h-16 rounded-2xl flex items-center justify-center ${annStyles.iconBg} ${annStyles.iconColor} shadow-sm`}>
+                        <annStyles.icon size={32} />
+                     </div>
+                     <div>
+                        <span className={`text-xs font-bold uppercase tracking-wider px-3 py-1 rounded-full bg-white/60 ${annStyles.iconColor}`}>
+                          {annStyles.label}
+                        </span>
+                        <h2 className={`text-3xl font-bold mt-2 ${annStyles.title}`}>最新公告內容</h2>
+                     </div>
+                  </div>
+                  
+                  {activeAnnouncement ? (
+                    <div className="bg-white/80 backdrop-blur-sm p-8 rounded-[2rem] border border-white/50 shadow-sm">
+                      <div className="prose prose-lg prose-stone max-w-none text-stone-700 leading-loose whitespace-pre-wrap font-medium">
+                        {activeAnnouncement.content}
+                      </div>
+                      <div className="mt-4 text-xs font-bold text-stone-400 text-right">
+                        發布時間: {new Date(activeAnnouncement.createdAt).toLocaleString()}
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-center py-16 text-stone-400 bg-white/50 rounded-[2rem] border border-dashed border-stone-200">
+                       <p>目前尚無已發布的系統公告</p>
+                    </div>
+                  )}
+                </div>
+             </div>
+
+             {/* History */}
+             <div className="pt-8">
+                <div className="flex items-center gap-3 mb-6">
+                   <div className="h-px bg-stone-200 flex-1"></div>
+                   <h3 className="text-sm font-bold text-stone-400 uppercase tracking-widest flex items-center gap-2">
+                     <History size={14} /> 歷史紀錄
+                   </h3>
+                   <div className="h-px bg-stone-200 flex-1"></div>
+                </div>
+
+                <div className="space-y-4">
+                   {data.announcements
+                     .filter(a => !a.isActive) // Show inactive ones in history
+                     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+                     .map(ann => {
+                       let levelStyle = 'bg-stone-100 text-stone-500';
+                       if (ann.level === 'urgent') levelStyle = 'bg-red-100 text-red-600';
+                       else if (ann.level === 'warning') levelStyle = 'bg-amber-100 text-amber-600';
+                       else if (ann.level === 'info') levelStyle = 'bg-blue-50 text-blue-600';
+
+                       return (
+                         <div key={ann.id} className="bg-white p-5 rounded-2xl border border-stone-100 shadow-sm flex gap-5 items-center opacity-80 hover:opacity-100 transition-all hover:shadow-md">
+                            <div className="flex flex-col items-center min-w-[80px]">
+                               <div className="text-xs font-bold text-stone-400 mb-1">{new Date(ann.createdAt).getFullYear()}</div>
+                               <div className="text-sm font-bold text-stone-600 bg-stone-100 px-2 py-1 rounded-lg">
+                                 {new Date(ann.createdAt).toLocaleDateString('zh-TW', {month:'short', day:'numeric'})}
+                               </div>
+                            </div>
+                            <div className="w-px h-10 bg-stone-100"></div>
+                            <div className="flex-1">
+                               <p className="text-stone-800 font-medium text-base line-clamp-2 leading-relaxed">
+                                 {ann.content}
+                               </p>
+                            </div>
+                            <div>
+                               <div className={`w-3 h-3 rounded-full ${levelStyle.split(' ')[0]}`}></div>
+                            </div>
+                         </div>
+                       );
+                     })}
+                   {data.announcements.filter(a => !a.isActive).length === 0 && (
+                      <p className="text-center text-stone-400 text-sm py-10">無歷史紀錄</p>
+                   )}
+                </div>
+             </div>
+          </div>
+        );
         
       case 'admin':
         return (
@@ -691,6 +971,9 @@ const App = () => {
             onAddGoal={handleAddGoal}
             onToggleGoal={() => {}} 
             onUpdateUser={handleUpdateUser}
+            onCreateAnnouncement={handleCreateAnnouncement}
+            onUpdateAnnouncement={handleUpdateAnnouncement}
+            onDeleteAnnouncement={handleDeleteAnnouncement}
           />
         );
 
@@ -704,6 +987,7 @@ const App = () => {
       onNavigate={handleNavigate}
       onOpenCreate={() => { setIsProjectCreation(false); setShowCreateModal(true); }}
       currentUser={data.currentUser}
+      activeAnnouncement={activeAnnouncement}
     >
       {renderContent()}
       

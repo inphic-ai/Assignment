@@ -14,6 +14,19 @@ export type GoalCategory =
   | '售後' 
   | '行政';
 
+// Announcement Level
+export type AnnouncementLevel = 'info' | 'warning' | 'urgent';
+
+// New Announcement Interface
+export interface Announcement {
+  id: string;
+  content: string;
+  level: AnnouncementLevel;
+  createdAt: string;
+  createdBy: string;
+  isActive: boolean; // Controls visibility
+}
+
 export interface Attachment {
   id: string;
   type: 'image' | 'file' | 'link' | 'youtube';
@@ -117,7 +130,7 @@ export interface LoginLogEntry {
 export interface LogEntry {
   id: string;
   action: 'CREATE' | 'READ' | 'UPDATE' | 'DELETE' | 'SUBMIT' | 'APPROVE' | 'REJECT' | 'RESTORE';
-  target: 'TASK' | 'PROJECT' | 'GOAL' | 'USER' | 'KNOWLEDGE' | 'ALLOCATION';
+  target: 'TASK' | 'PROJECT' | 'GOAL' | 'USER' | 'KNOWLEDGE' | 'ALLOCATION' | 'ANNOUNCEMENT';
   details: string;
   timestamp: string;
   userId: string;
@@ -147,6 +160,7 @@ export interface AppState {
   users: User[];
   currentUser: User;
   allocations: TaskAllocation[]; // Store time slices
+  announcements: Announcement[]; // Replaces single string systemAnnouncement
 }
 
-export type NavTab = 'dashboard' | 'create' | 'daily' | 'projects' | 'timeline' | 'knowledge' | 'admin';
+export type NavTab = 'dashboard' | 'create' | 'daily' | 'projects' | 'timeline' | 'knowledge' | 'announcement' | 'admin';
