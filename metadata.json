@@ -1,0 +1,7 @@
+{
+  "name": "Chronos 任務大師",
+  "description": "全方位的任務管理系統，包含時間分類（零碎、當日、長期）、專案聚合及 AI 任務拆解功能。",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
