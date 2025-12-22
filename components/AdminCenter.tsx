@@ -1,6 +1,7 @@
+
 import React, { useState, useRef } from 'react';
-import { AppState, LogEntry, User, GoalCategory, AnnouncementLevel, Announcement } from '../types';
-import { Users, History, Target, ShieldAlert, Plus, Ban, MoreHorizontal, Check, X, Edit2, Power, Shield, Smartphone, Globe, Settings, Bell, Camera, AlertTriangle, Info, Megaphone, Trash2 } from 'lucide-react';
+import { AppState, LogEntry, User, GoalCategory, AnnouncementLevel, Announcement, TutorialTip } from '../types';
+import { Users, History, Target, ShieldAlert, Plus, Ban, MoreHorizontal, Check, X, Edit2, Power, Shield, Smartphone, Globe, Settings, Bell, Camera, AlertTriangle, Info, Megaphone, Trash2, BookOpen, Lightbulb } from 'lucide-react';
 
 interface AdminCenterProps {
   data: AppState;
@@ -11,13 +12,16 @@ interface AdminCenterProps {
   onCreateAnnouncement: (content: string, level: AnnouncementLevel) => void;
   onUpdateAnnouncement: (id: string, updates: Partial<Announcement>) => void;
   onDeleteAnnouncement: (id: string) => void;
+  // Tutorial Actions (Add these to App.tsx later)
+  onUpdateTutorial?: (id: string, updates: Partial<TutorialTip>) => void;
 }
 
 const AdminCenter: React.FC<AdminCenterProps> = ({ 
   data, onAddGoal, onUpdateUser, 
-  onCreateAnnouncement, onUpdateAnnouncement, onDeleteAnnouncement 
+  onCreateAnnouncement, onUpdateAnnouncement, onDeleteAnnouncement,
+  onUpdateTutorial
 }) => {
-  const [activeTab, setActiveTab] = useState<'logs' | 'users' | 'goals' | 'login_logs' | 'system'>('logs');
+  const [activeTab, setActiveTab] = useState<'logs' | 'users' | 'goals' | 'login_logs' | 'system' | 'tutorials'>('logs');
   
   // User Editing State
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
@@ -34,6 +38,10 @@ const AdminCenter: React.FC<AdminCenterProps> = ({
   const [announcementInput, setAnnouncementInput] = useState('');
   const [announcementLevel, setAnnouncementLevel] = useState<AnnouncementLevel>('info');
   const [editingAnnouncementId, setEditingAnnouncementId] = useState<string | null>(null);
+
+  // Tutorial Editing State
+  const [editingTutorialId, setEditingTutorialId] = useState<string | null>(null);
+  const [editTutorialForm, setEditTutorialForm] = useState<Partial<TutorialTip>>({});
 
   const startEditUser = (user: User) => {
     setEditingUserId(user.id);
@@ -82,6 +90,19 @@ const AdminCenter: React.FC<AdminCenterProps> = ({
     setEditingAnnouncementId(null);
     setAnnouncementInput('');
     setAnnouncementLevel('info');
+  };
+
+  // --- Tutorial Handlers ---
+  const startEditTutorial = (tut: TutorialTip) => {
+    setEditingTutorialId(tut.id);
+    setEditTutorialForm({...tut});
+  };
+
+  const saveTutorial = () => {
+    if (editingTutorialId && editTutorialForm && onUpdateTutorial) {
+      onUpdateTutorial(editingTutorialId, editTutorialForm);
+      setEditingTutorialId(null);
+    }
   };
 
   // --- RENDERERS ---
@@ -381,6 +402,84 @@ const AdminCenter: React.FC<AdminCenterProps> = ({
     </div>
   );
 
+  const renderTutorials = () => (
+    <div className="space-y-6">
+       <div className="bg-white p-6 rounded-[2rem] border border-stone-100 shadow-sm">
+          <h3 className="text-lg font-bold text-stone-800 mb-2 flex items-center gap-2">
+             <BookOpen size={20} className="text-amber-500" /> 使用教學與錯誤提示管理
+          </h3>
+          <p className="text-sm text-stone-500 mb-6">設定系統在特定情境下顯示的引導文字，取代生硬的錯誤訊息。</p>
+          
+          <div className="space-y-4">
+             {data.tutorials && data.tutorials.map(tut => {
+               const isEditing = editingTutorialId === tut.id;
+               return (
+                 <div key={tut.id} className={`p-5 rounded-2xl border transition-all ${isEditing ? 'bg-amber-50 border-amber-200' : 'bg-white border-stone-100 hover:shadow-md'}`}>
+                    {isEditing ? (
+                       <div className="space-y-3">
+                          <div className="flex justify-between items-center mb-2">
+                             <span className="text-xs font-bold text-stone-400 uppercase tracking-wider">{tut.triggerKey}</span>
+                             <div className="flex gap-2">
+                                <button onClick={saveTutorial} className="bg-emerald-500 text-white px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-emerald-600 flex items-center gap-1"><Check size={14}/> 儲存</button>
+                                <button onClick={() => setEditingTutorialId(null)} className="bg-stone-200 text-stone-600 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-stone-300 flex items-center gap-1"><X size={14}/> 取消</button>
+                             </div>
+                          </div>
+                          <div>
+                             <label className="text-xs font-bold text-stone-500 mb-1 block">提示標題</label>
+                             <input 
+                               value={editTutorialForm.title} 
+                               onChange={e => setEditTutorialForm({...editTutorialForm, title: e.target.value})}
+                               className="w-full p-2 rounded-xl border border-amber-200 focus:ring-2 focus:ring-amber-400 outline-none"
+                             />
+                          </div>
+                          <div>
+                             <label className="text-xs font-bold text-stone-500 mb-1 block">教學內容</label>
+                             <textarea 
+                               value={editTutorialForm.content} 
+                               onChange={e => setEditTutorialForm({...editTutorialForm, content: e.target.value})}
+                               className="w-full p-2 rounded-xl border border-amber-200 focus:ring-2 focus:ring-amber-400 outline-none h-24"
+                             />
+                          </div>
+                       </div>
+                    ) : (
+                       <div className="flex justify-between items-start gap-4">
+                          <div className="flex-1">
+                             <div className="flex items-center gap-3 mb-2">
+                                <h4 className="font-bold text-stone-800 text-lg">{tut.title}</h4>
+                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase ${tut.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-stone-200 text-stone-500'}`}>
+                                   {tut.isActive ? '啟用中' : '已停用'}
+                                </span>
+                                <span className="text-[10px] text-stone-400 bg-stone-100 px-1.5 py-0.5 rounded font-mono">{tut.triggerKey}</span>
+                             </div>
+                             <p className="text-stone-600 text-sm whitespace-pre-wrap leading-relaxed">{tut.content}</p>
+                          </div>
+                          <div className="flex flex-col gap-2">
+                             <button 
+                               onClick={() => startEditTutorial(tut)}
+                               className="p-2 hover:bg-stone-100 rounded-lg text-stone-400 hover:text-stone-700" title="編輯"
+                             >
+                                <Edit2 size={16} />
+                             </button>
+                             {onUpdateTutorial && (
+                                <button 
+                                  onClick={() => onUpdateTutorial(tut.id, { isActive: !tut.isActive })}
+                                  className={`p-2 rounded-lg ${tut.isActive ? 'hover:bg-red-50 text-emerald-500 hover:text-red-500' : 'hover:bg-emerald-50 text-stone-300 hover:text-emerald-500'}`}
+                                  title={tut.isActive ? '停用' : '啟用'}
+                                >
+                                   <Power size={16} />
+                                </button>
+                             )}
+                          </div>
+                       </div>
+                    )}
+                 </div>
+               );
+             })}
+          </div>
+       </div>
+    </div>
+  );
+
   const renderSystem = () => (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
        {/* Left: General Settings */}
@@ -537,6 +636,7 @@ const AdminCenter: React.FC<AdminCenterProps> = ({
           { id: 'users', label: '人員權限', icon: Users },
           { id: 'goals', label: '目標項目', icon: Target },
           { id: 'system', label: '系統設定', icon: Settings },
+          { id: 'tutorials', label: '使用教學', icon: BookOpen }, // New Tab
         ].map(tab => (
           <button
             key={tab.id}
@@ -559,6 +659,7 @@ const AdminCenter: React.FC<AdminCenterProps> = ({
         {activeTab === 'users' && renderUsers()}
         {activeTab === 'goals' && renderGoals()}
         {activeTab === 'system' && renderSystem()}
+        {activeTab === 'tutorials' && renderTutorials()}
       </div>
     </div>
   );

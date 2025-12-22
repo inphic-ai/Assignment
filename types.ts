@@ -27,6 +27,16 @@ export interface Announcement {
   isActive: boolean; // Controls visibility
 }
 
+// --- NEW TUTORIAL TYPES ---
+export interface TutorialTip {
+  id: string;
+  triggerKey: string; // Unique key to trigger this tip (e.g., 'TIMELINE_PAST_DRAG')
+  title: string;
+  content: string; // Can be multi-line text
+  category: 'timeline' | 'task' | 'project' | 'general';
+  isActive: boolean; // Admin can disable tips
+}
+
 export interface Attachment {
   id: string;
   type: 'image' | 'file' | 'link' | 'youtube';
@@ -97,6 +107,9 @@ export interface Task {
   
   linkedKnowledgeId?: string;
 
+  // Link back to routine template if generated
+  fromRoutineId?: string; 
+
   // New field for accumulated time tracking
   totalSpent?: number; // in minutes
 
@@ -106,6 +119,37 @@ export interface Task {
   // Soft Delete
   deletedAt?: string;
   deletedBy?: string;
+}
+
+// --- NEW ROUTINE TYPES ---
+export type RecurrenceType = 'daily' | 'workday' | 'weekly' | 'monthly';
+export type RoutineStrategy = 'static' | 'rotating'; // Static = All assignees get it; Rotating = One per cycle
+export type RoutineStatus = 'active' | 'frozen' | 'draft';
+
+export interface RoutineTemplate {
+  id: string;
+  title: string;
+  description: string;
+  goal: GoalCategory;
+  timeType: TimeType; // Usually misc or daily
+  timeValue: number;
+  
+  recurrence: RecurrenceType;
+  recurrenceDay?: number; // For weekly (0-6) or monthly (1-31)
+  
+  // Advanced Assignment Logic
+  strategy: RoutineStrategy; 
+  assigneeIds: string[]; // List of involved users. If 'static', all get it. If 'rotating', take turns.
+  currentRotationIndex: number; // For rotating strategy: who is next?
+  
+  // Date Range Control
+  validFrom: string; // ISO Date String (YYYY-MM-DD)
+  validTo?: string;   // ISO Date String (Optional)
+
+  creatorId: string;
+  
+  status: RoutineStatus; // Replaces isActive boolean
+  lastGeneratedDate?: string; // YYYY-MM-DD to prevent duplicate generation
 }
 
 export interface Project {
@@ -130,7 +174,7 @@ export interface LoginLogEntry {
 export interface LogEntry {
   id: string;
   action: 'CREATE' | 'READ' | 'UPDATE' | 'DELETE' | 'SUBMIT' | 'APPROVE' | 'REJECT' | 'RESTORE';
-  target: 'TASK' | 'PROJECT' | 'GOAL' | 'USER' | 'KNOWLEDGE' | 'ALLOCATION' | 'ANNOUNCEMENT';
+  target: 'TASK' | 'PROJECT' | 'GOAL' | 'USER' | 'KNOWLEDGE' | 'ALLOCATION' | 'ANNOUNCEMENT' | 'ROUTINE' | 'TUTORIAL';
   details: string;
   timestamp: string;
   userId: string;
@@ -161,6 +205,8 @@ export interface AppState {
   currentUser: User;
   allocations: TaskAllocation[]; // Store time slices
   announcements: Announcement[]; // Replaces single string systemAnnouncement
+  routineTemplates: RoutineTemplate[]; // NEW
+  tutorials: TutorialTip[]; // NEW: For instructional prompts
 }
 
-export type NavTab = 'dashboard' | 'create' | 'daily' | 'projects' | 'timeline' | 'knowledge' | 'announcement' | 'admin';
+export type NavTab = 'dashboard' | 'create' | 'daily' | 'projects' | 'timeline' | 'routines' | 'knowledge' | 'announcement' | 'admin';

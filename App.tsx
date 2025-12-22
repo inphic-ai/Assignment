@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import Layout from './components/Layout';
 import Dashboard from './components/Dashboard';
@@ -7,8 +8,10 @@ import TaskDetailModal from './components/TaskDetailModal';
 import AdminCenter from './components/AdminCenter';
 import TimelineView from './components/TimelineView';
 import KnowledgeBase from './components/KnowledgeBase';
-import { NavTab, Task, Project, ViewMode, AppState, GoalCategory, User, LogEntry, TaskAllocation, TaskStatus, LoginLogEntry, TimeType, RoleType, AnnouncementLevel, Announcement } from './types';
-import { INITIAL_GOALS, VIEW_MODES, generateId, convertToHours } from './constants';
+import RoutineManager from './components/RoutineManager'; 
+import TutorialModal from './components/TutorialModal'; // New Import
+import { NavTab, Task, Project, ViewMode, AppState, GoalCategory, User, LogEntry, TaskAllocation, TaskStatus, LoginLogEntry, TimeType, RoleType, AnnouncementLevel, Announcement, RoutineTemplate, TutorialTip } from './types';
+import { INITIAL_GOALS, VIEW_MODES, INITIAL_TUTORIALS, generateId, convertToHours } from './constants';
 import { Search, SlidersHorizontal, ArrowLeft, Filter, X, User as UserIcon, Briefcase, Clock, Target, RotateCcw, Zap, Sun, Calendar, Edit2, Check, Megaphone, Bell, Info, AlertTriangle, History } from 'lucide-react';
 
 const MOCK_USERS: User[] = [
@@ -44,19 +47,22 @@ const App = () => {
     if (saved) {
       const parsed = JSON.parse(saved);
       // Migration: Ensure 'announcements' array exists if old version
-      if (!parsed.announcements) {
-        parsed.announcements = [];
-        if (parsed.systemAnnouncement) {
-          parsed.announcements.push({
-            id: 'ann-init',
-            content: parsed.systemAnnouncement,
-            level: parsed.systemAnnouncementLevel || 'info',
-            createdAt: new Date().toISOString(),
-            createdBy: 'u1',
-            isActive: true
-          });
-        }
-      }
+      if (!parsed.announcements) parsed.announcements = [];
+      // Migration: Ensure 'routineTemplates' array exists
+      if (!parsed.routineTemplates) parsed.routineTemplates = [];
+      // Migration: Ensure 'tutorials' array exists
+      if (!parsed.tutorials) parsed.tutorials = INITIAL_TUTORIALS;
+      
+      // MIGRATION: Update old RoutineTemplate structure to new Multi-Assignee & Rotation structure
+      parsed.routineTemplates = parsed.routineTemplates.map((t: any) => ({
+        ...t,
+        strategy: t.strategy || 'static',
+        status: t.status || (t.isActive ? 'active' : 'frozen'),
+        assigneeIds: t.assigneeIds || (t.assigneeId && t.assigneeId !== 'ALL' ? [t.assigneeId] : []),
+        currentRotationIndex: t.currentRotationIndex || 0,
+        validFrom: t.validFrom || new Date().toISOString().split('T')[0]
+      }));
+
       return parsed;
     }
     return {
@@ -68,7 +74,9 @@ const App = () => {
       users: MOCK_USERS,
       currentUser: MOCK_USERS[0],
       allocations: [],
-      announcements: []
+      announcements: [],
+      routineTemplates: [],
+      tutorials: INITIAL_TUTORIALS // Load initial prompts
     };
   });
 
@@ -96,6 +104,9 @@ const App = () => {
   // New Role Filter
   const [filterRole, setFilterRole] = useState<'all' | RoleType>('all');
 
+  // Tutorial State
+  const [activeTutorial, setActiveTutorial] = useState<TutorialTip | null>(null);
+
   const [viewingUserId, setViewingUserId] = useState<string>(
     (data.currentUser.role === 'admin' || data.currentUser.role === 'manager') 
       ? 'ALL' 
@@ -105,6 +116,123 @@ const App = () => {
   useEffect(() => {
     localStorage.setItem('chronos_data_v8', JSON.stringify(data));
   }, [data]);
+
+  // --- ROUTINE GENERATION LOGIC ---
+  useEffect(() => {
+    const checkAndGenerateRoutines = () => {
+      const today = new Date();
+      const todayStr = today.toISOString().split('T')[0];
+      const dayOfWeek = today.getDay(); // 0 (Sun) - 6 (Sat)
+      const dayOfMonth = today.getDate(); // 1 - 31
+      
+      const newTasks: Task[] = [];
+      const updatedTemplates: RoutineTemplate[] = [];
+      let hasChanges = false;
+
+      data.routineTemplates.forEach(template => {
+        // 1. Basic Eligibility Check
+        if (template.status !== 'active') {
+          updatedTemplates.push(template);
+          return;
+        }
+
+        // 2. Date Range Check
+        if (template.validFrom && todayStr < template.validFrom) {
+           updatedTemplates.push(template);
+           return;
+        }
+        if (template.validTo && todayStr > template.validTo) {
+           // Optionally mark as expired/frozen? For now just skip.
+           updatedTemplates.push(template);
+           return;
+        }
+        
+        // 3. Recurrence Logic
+        let shouldRun = false;
+        if (template.recurrence === 'daily') shouldRun = true;
+        else if (template.recurrence === 'workday') shouldRun = dayOfWeek >= 1 && dayOfWeek <= 5;
+        else if (template.recurrence === 'weekly') shouldRun = dayOfWeek === (template.recurrenceDay || 1);
+        else if (template.recurrence === 'monthly') shouldRun = dayOfMonth === (template.recurrenceDay || 1);
+
+        // 4. Generation Check
+        if (shouldRun && template.lastGeneratedDate !== todayStr) {
+           let targetUserIds: string[] = [];
+           let nextIndex = template.currentRotationIndex || 0;
+
+           if (template.strategy === 'rotating') {
+              // Rotating Strategy: Pick one user based on index
+              if (template.assigneeIds && template.assigneeIds.length > 0) {
+                 const assigneeId = template.assigneeIds[nextIndex % template.assigneeIds.length];
+                 targetUserIds = [assigneeId];
+                 // Advance index for next time
+                 nextIndex = (nextIndex + 1) % template.assigneeIds.length;
+              }
+           } else {
+              // Static Strategy: Assign to all listed
+              if (template.assigneeIds && template.assigneeIds.length > 0) {
+                 targetUserIds = template.assigneeIds;
+              } else {
+                 // Fallback if empty (shouldn't happen with new UI)
+              }
+           }
+
+           // 5. Generate Task for each target
+           targetUserIds.forEach(userId => {
+             // Validate user exists and is active
+             const userExists = data.users.find(u => u.id === userId && u.active);
+             if (!userExists) return;
+
+             const newTask: Task = {
+               id: generateId('AUTO'),
+               title: template.title,
+               description: template.description || '系統自動產生的例行工作',
+               timeType: template.timeType,
+               timeValue: template.timeValue,
+               goal: template.goal,
+               role: 'assigned_by_me', // System assigned
+               projectId: null,
+               status: 'todo',
+               startAt: new Date().toISOString(),
+               dueAt: new Date(new Date().setHours(23, 59, 59)).toISOString(), // End of today
+               orderDaily: 0,
+               orderInProject: 0,
+               creatorId: template.creatorId,
+               assigneeId: userId,
+               watchers: [],
+               requireProof: false,
+               attachments: [],
+               fromRoutineId: template.id,
+               createdAt: new Date().toISOString(),
+               updatedAt: new Date().toISOString()
+             };
+             newTasks.push(newTask);
+           });
+
+           // Update template state (last run date + rotation index)
+           updatedTemplates.push({ 
+             ...template, 
+             lastGeneratedDate: todayStr,
+             currentRotationIndex: nextIndex 
+           });
+           hasChanges = true;
+        } else {
+           updatedTemplates.push(template);
+        }
+      });
+
+      if (hasChanges) {
+         setData(prev => ({
+           ...prev,
+           tasks: [...prev.tasks, ...newTasks],
+           routineTemplates: updatedTemplates,
+           logs: [...prev.logs, logOperation('CREATE', 'ROUTINE', `自動生成 ${newTasks.length} 個例行任務`)]
+         }));
+      }
+    };
+
+    // Run on mount
+    checkAndGenerateRoutines();
+  }, [data.routineTemplates]); 
 
   // --- DERIVED STATE ---
   // Get the most recent active announcement
@@ -152,7 +280,7 @@ const App = () => {
   // --- LOGGING ---
   const logOperation = (
     action: 'CREATE' | 'READ' | 'UPDATE' | 'DELETE' | 'SUBMIT' | 'APPROVE' | 'REJECT' | 'RESTORE',
-    target: 'TASK' | 'PROJECT' | 'GOAL' | 'USER' | 'KNOWLEDGE' | 'ALLOCATION' | 'ANNOUNCEMENT',
+    target: 'TASK' | 'PROJECT' | 'GOAL' | 'USER' | 'KNOWLEDGE' | 'ALLOCATION' | 'ANNOUNCEMENT' | 'ROUTINE' | 'TUTORIAL',
     details: string
   ) => {
     const newLog: LogEntry = {
@@ -449,8 +577,57 @@ const App = () => {
     }));
   };
 
+  // --- ROUTINE ACTIONS ---
+  const handleSaveRoutineTemplate = (template: RoutineTemplate) => {
+    const exists = data.routineTemplates.find(t => t.id === template.id);
+    let newTemplates = [...data.routineTemplates];
+    if (exists) {
+      newTemplates = newTemplates.map(t => t.id === template.id ? template : t);
+      logOperation('UPDATE', 'ROUTINE', `更新例行模板: ${template.title}`);
+    } else {
+      newTemplates.push(template);
+      logOperation('CREATE', 'ROUTINE', `新增例行模板: ${template.title}`);
+    }
+    setData(prev => ({ ...prev, routineTemplates: newTemplates }));
+  };
+
+  const handleDeleteRoutineTemplate = (id: string) => {
+    logOperation('DELETE', 'ROUTINE', `刪除例行模板 ID: ${id}`);
+    setData(prev => ({ 
+      ...prev, 
+      routineTemplates: prev.routineTemplates.filter(t => t.id !== id) 
+    }));
+  };
+
+  const handleToggleRoutineTemplate = (id: string, status: any) => {
+    setData(prev => ({
+      ...prev,
+      routineTemplates: prev.routineTemplates.map(t => t.id === id ? { ...t, status: status } : t)
+    }));
+  };
+
+  // --- TUTORIAL ACTIONS ---
+  const handleTriggerTutorial = (key: string) => {
+    const tutorial = data.tutorials.find(t => t.triggerKey === key && t.isActive);
+    if (tutorial) {
+      setActiveTutorial(tutorial);
+    } else {
+      // Fallback if no tutorial exists or disabled (optional: could use default alert)
+      // console.warn(`No active tutorial found for key: ${key}`);
+    }
+  };
+
+  const handleUpdateTutorial = (id: string, updates: Partial<TutorialTip>) => {
+    logOperation('UPDATE', 'TUTORIAL', `更新教學內容 ID: ${id}`);
+    setData(prev => ({
+      ...prev,
+      tutorials: prev.tutorials.map(t => t.id === id ? { ...t, ...updates } : t)
+    }));
+  };
+
   // --- REUSABLE VISUAL FILTER BAR ---
   const FilterBar = () => {
+    // ... (FilterBar implementation remains the same)
     const FilterChip = ({ active, label, onClick, icon: Icon }: any) => (
       <button
         onClick={onClick}
@@ -536,134 +713,135 @@ const App = () => {
   // --- RENDER CONTENT ---
   
   const renderContent = () => {
-    // === PROJECT DETAIL VIEW ===
+    // ... (Existing render logic)
     if (currentTab === 'projects' && selectedProjectId) {
-      const project = data.projects.find(p => p.id === selectedProjectId);
-      const projectTasks = activeTasks.filter(t => t.projectId === selectedProjectId);
-      const totalHrs = projectTasks.reduce((acc, t) => acc + convertToHours(t.timeValue, t.timeType), 0);
-
-      const handleSaveProject = () => {
-        if(selectedProjectId && editProjectData.name) {
-          handleUpdateProject(selectedProjectId, editProjectData);
-        }
-      };
-
-      return (
-        <div className="space-y-6">
-           {/* Detail Header with View Switcher */}
-           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-             <button onClick={() => setSelectedProjectId(null)} className="flex items-center text-stone-500 hover:text-stone-800">
-               <ArrowLeft size={18} className="mr-2" /> 返回專案列表
-             </button>
+        // ... (Existing project detail view code)
+        const project = data.projects.find(p => p.id === selectedProjectId);
+        const projectTasks = activeTasks.filter(t => t.projectId === selectedProjectId);
+        const totalHrs = projectTasks.reduce((acc, t) => acc + convertToHours(t.timeValue, t.timeType), 0);
+  
+        const handleSaveProject = () => {
+          if(selectedProjectId && editProjectData.name) {
+            handleUpdateProject(selectedProjectId, editProjectData);
+          }
+        };
+  
+        return (
+          <div className="space-y-6">
+             {/* Detail Header with View Switcher */}
+             <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+               <button onClick={() => setSelectedProjectId(null)} className="flex items-center text-stone-500 hover:text-stone-800">
+                 <ArrowLeft size={18} className="mr-2" /> 返回專案列表
+               </button>
+               
+               {/* Detail View Switcher */}
+               <div className="flex items-center bg-stone-200 p-1 rounded-xl">
+                  {VIEW_MODES.filter(m => m.id === 'board' || m.id === 'card' || m.id === 'list').map(m => (
+                    <button 
+                      key={m.id}
+                      onClick={() => setProjectDetailViewMode(m.id as ViewMode)}
+                      className={`p-2 rounded-lg transition-all ${projectDetailViewMode === m.id ? 'bg-white shadow-sm text-stone-800' : 'text-stone-500 hover:text-stone-700'}`}
+                      title={m.label}
+                    >
+                      <m.icon size={20} />
+                    </button>
+                  ))}
+               </div>
+             </div>
              
-             {/* Detail View Switcher */}
-             <div className="flex items-center bg-stone-200 p-1 rounded-xl">
-                {VIEW_MODES.filter(m => m.id === 'board' || m.id === 'card' || m.id === 'list').map(m => (
-                  <button 
-                    key={m.id}
-                    onClick={() => setProjectDetailViewMode(m.id as ViewMode)}
-                    className={`p-2 rounded-lg transition-all ${projectDetailViewMode === m.id ? 'bg-white shadow-sm text-stone-800' : 'text-stone-500 hover:text-stone-700'}`}
-                    title={m.label}
-                  >
-                    <m.icon size={20} />
-                  </button>
-                ))}
-             </div>
-           </div>
-           
-           {/* Project Info Header (With Edit Support) */}
-           <div className="bg-white p-8 rounded-[2rem] border border-stone-200 shadow-sm relative group">
-             <div className="flex justify-between items-start">
-               <div className="flex-1 mr-8">
-                  {isEditingProject ? (
-                    <div className="space-y-3">
-                       <input 
-                         value={editProjectData.name}
-                         onChange={(e) => setEditProjectData(prev => ({...prev, name: e.target.value}))}
-                         className="text-3xl font-bold text-stone-800 w-full border border-orange-200 rounded-lg px-2 py-1 focus:ring-2 focus:ring-orange-500 outline-none"
-                         placeholder="專案名稱"
-                       />
-                       <textarea 
-                         value={editProjectData.description}
-                         onChange={(e) => setEditProjectData(prev => ({...prev, description: e.target.value}))}
-                         className="text-stone-600 w-full border border-orange-200 rounded-lg px-2 py-2 focus:ring-2 focus:ring-orange-500 outline-none h-20"
-                         placeholder="專案描述..."
-                       />
-                       <div className="flex gap-2">
-                         <button onClick={handleSaveProject} className="flex items-center gap-1 bg-emerald-500 text-white px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-emerald-600">
-                           <Check size={16} /> 儲存
-                         </button>
-                         <button onClick={() => setIsEditingProject(false)} className="flex items-center gap-1 bg-stone-200 text-stone-600 px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-stone-300">
-                           <X size={16} /> 取消
-                         </button>
-                       </div>
-                    </div>
-                  ) : (
-                    <>
-                      <div className="flex items-center gap-3">
-                        <h1 className="text-3xl font-bold text-stone-800">{project?.name}</h1>
-                        <button 
-                          onClick={() => {
-                            if(project) {
-                              setEditProjectData({ name: project.name, description: project.description });
-                              setIsEditingProject(true);
-                            }
-                          }}
-                          className="opacity-0 group-hover:opacity-100 p-2 text-stone-400 hover:text-stone-600 hover:bg-stone-100 rounded-full transition-all"
-                        >
-                          <Edit2 size={18} />
-                        </button>
+             {/* Project Info Header (With Edit Support) */}
+             <div className="bg-white p-8 rounded-[2rem] border border-stone-200 shadow-sm relative group">
+               <div className="flex justify-between items-start">
+                 <div className="flex-1 mr-8">
+                    {isEditingProject ? (
+                      <div className="space-y-3">
+                         <input 
+                           value={editProjectData.name}
+                           onChange={(e) => setEditProjectData(prev => ({...prev, name: e.target.value}))}
+                           className="text-3xl font-bold text-stone-800 w-full border border-orange-200 rounded-lg px-2 py-1 focus:ring-2 focus:ring-orange-500 outline-none"
+                           placeholder="專案名稱"
+                         />
+                         <textarea 
+                           value={editProjectData.description}
+                           onChange={(e) => setEditProjectData(prev => ({...prev, description: e.target.value}))}
+                           className="text-stone-600 w-full border border-orange-200 rounded-lg px-2 py-2 focus:ring-2 focus:ring-orange-500 outline-none h-20"
+                           placeholder="專案描述..."
+                         />
+                         <div className="flex gap-2">
+                           <button onClick={handleSaveProject} className="flex items-center gap-1 bg-emerald-500 text-white px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-emerald-600">
+                             <Check size={16} /> 儲存
+                           </button>
+                           <button onClick={() => setIsEditingProject(false)} className="flex items-center gap-1 bg-stone-200 text-stone-600 px-3 py-1.5 rounded-lg text-sm font-bold hover:bg-stone-300">
+                             <X size={16} /> 取消
+                           </button>
+                         </div>
                       </div>
-                      <p className="text-stone-500 mt-2">{project?.description}</p>
-                    </>
-                  )}
-               </div>
-               <div className="text-right">
-                  <p className="text-xs font-bold text-stone-400 uppercase">總投入</p>
-                  <p className="text-4xl font-bold text-amber-500">{totalHrs.toFixed(1)} <span className="text-lg text-stone-400">小時</span></p>
-               </div>
-             </div>
-           </div>
-
-           {/* Content based on projectDetailViewMode */}
-           {projectDetailViewMode === 'board' ? (
-             // --- Kanban / Board View (3-Column) ---
-             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-2">
-               {['misc', 'daily', 'long'].map(type => (
-                 <div key={type} className="bg-stone-50 rounded-[2rem] p-6 border border-stone-200">
-                   <h3 className="font-bold text-stone-600 uppercase text-sm mb-4 border-b border-stone-200 pb-2 flex justify-between">
-                     {type === 'misc' ? '零碎工作 (分鐘)' : type === 'daily' ? '當日工作 (小時)' : '長期任務 (天)'}
-                   </h3>
-                   <div className="space-y-3">
-                     {projectTasks.filter(t => t.timeType === type).map(task => (
-                       <div 
-                         key={task.id} 
-                         onClick={() => setSelectedTask(task)}
-                         className="bg-white p-4 rounded-2xl shadow-sm border border-stone-100 flex items-center justify-between cursor-pointer hover:shadow-md transition-all"
-                       >
-                         <span className={task.status === 'done' ? 'line-through text-stone-400' : 'text-stone-800 font-medium'}>{task.title}</span>
-                         <span className="text-xs font-bold bg-stone-100 px-2 py-1 rounded">{task.timeValue}</span>
-                       </div>
-                     ))}
-                   </div>
+                    ) : (
+                      <>
+                        <div className="flex items-center gap-3">
+                          <h1 className="text-3xl font-bold text-stone-800">{project?.name}</h1>
+                          <button 
+                            onClick={() => {
+                              if(project) {
+                                setEditProjectData({ name: project.name, description: project.description });
+                                setIsEditingProject(true);
+                              }
+                            }}
+                            className="opacity-0 group-hover:opacity-100 p-2 text-stone-400 hover:text-stone-600 hover:bg-stone-100 rounded-full transition-all"
+                          >
+                            <Edit2 size={18} />
+                          </button>
+                        </div>
+                        <p className="text-stone-500 mt-2">{project?.description}</p>
+                      </>
+                    )}
                  </div>
-               ))}
+                 <div className="text-right">
+                    <p className="text-xs font-bold text-stone-400 uppercase">總投入</p>
+                    <p className="text-4xl font-bold text-amber-500">{totalHrs.toFixed(1)} <span className="text-lg text-stone-400">小時</span></p>
+                 </div>
+               </div>
              </div>
-           ) : (
-             // --- Card or List View (Reusing TaskViews) ---
-             <TaskViews 
-               mode="daily" 
-               viewMode={projectDetailViewMode}
-               tasks={projectTasks} // Only pass filtered tasks
-               projects={data.projects}
-               users={data.users}
-               onUpdateTask={handleUpdateTask}
-               onSelectProject={() => {}} // No-op, already in project
-               onSelectTask={setSelectedTask}
-             />
-           )}
-        </div>
-      );
+  
+             {/* Content based on projectDetailViewMode */}
+             {projectDetailViewMode === 'board' ? (
+               // --- Kanban / Board View (3-Column) ---
+               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-in fade-in slide-in-from-bottom-2">
+                 {['misc', 'daily', 'long'].map(type => (
+                   <div key={type} className="bg-stone-50 rounded-[2rem] p-6 border border-stone-200">
+                     <h3 className="font-bold text-stone-600 uppercase text-sm mb-4 border-b border-stone-200 pb-2 flex justify-between">
+                       {type === 'misc' ? '零碎工作 (分鐘)' : type === 'daily' ? '當日工作 (小時)' : '長期任務 (天)'}
+                     </h3>
+                     <div className="space-y-3">
+                       {projectTasks.filter(t => t.timeType === type).map(task => (
+                         <div 
+                           key={task.id} 
+                           onClick={() => setSelectedTask(task)}
+                           className="bg-white p-4 rounded-2xl shadow-sm border border-stone-100 flex items-center justify-between cursor-pointer hover:shadow-md transition-all"
+                         >
+                           <span className={task.status === 'done' ? 'line-through text-stone-400' : 'text-stone-800 font-medium'}>{task.title}</span>
+                           <span className="text-xs font-bold bg-stone-100 px-2 py-1 rounded">{task.timeValue}</span>
+                         </div>
+                       ))}
+                     </div>
+                   </div>
+                 ))}
+               </div>
+             ) : (
+               // --- Card or List View (Reusing TaskViews) ---
+               <TaskViews 
+                 mode="daily" 
+                 viewMode={projectDetailViewMode}
+                 tasks={projectTasks} // Only pass filtered tasks
+                 projects={data.projects}
+                 users={data.users}
+                 onUpdateTask={handleUpdateTask}
+                 onSelectProject={() => {}} // No-op, already in project
+                 onSelectTask={setSelectedTask}
+               />
+             )}
+          </div>
+        );
     }
 
     switch (currentTab) {
@@ -678,17 +856,11 @@ const App = () => {
             allocations={data.allocations} 
             onSwitchUser={setViewingUserId}
             onNavigateToTasks={(filter) => {
-              // Reset other filters to ensure clear view
               setSearchTerm('');
               setFilterGoal('all');
               setFilterAssignee('all');
               setFilterRole('all');
-              
-              if (filter.timeType) {
-                setFilterType(filter.timeType);
-              }
-              // To go to Daily view tasks, we use setCurrentTab. 
-              // handleNavigate is safer as it resets selection
+              if (filter.timeType) setFilterType(filter.timeType);
               setCurrentTab('daily');
               setSelectedProjectId(null);
               if (viewMode === 'group') setViewMode('grid');
@@ -698,6 +870,7 @@ const App = () => {
         );
       
       case 'daily':
+        // ... (Existing Daily view logic)
         return (
           <div className="space-y-6">
             <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -738,7 +911,6 @@ const App = () => {
                   </button>
                </div>
 
-               {/* Visual Filter Bar */}
                {showFilters && <FilterBar />}
             </div>
 
@@ -750,7 +922,6 @@ const App = () => {
               viewMode={viewMode} 
               onUpdateTask={handleUpdateTask}
               onSelectProject={(id) => { 
-                // Navigate to Projects Tab and Select Project
                 setCurrentTab('projects');
                 setSelectedProjectId(id);
               }}
@@ -760,16 +931,14 @@ const App = () => {
         );
 
       case 'projects':
-        // === TOP LEVEL PROJECT LIST ===
-        return (
+        // ... (Existing Projects view logic)
+         return (
            <div className="space-y-6">
               <header className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                  <div>
                    <h1 className="text-3xl font-bold text-stone-800">專案任務</h1>
                    <p className="text-stone-500">聚合長期目標</p>
                  </div>
-                 
-                 {/* No View Switcher here - Forced to Group View */}
                  <div className="flex items-center gap-4">
                    <button 
                       onClick={() => setShowFilters(!showFilters)}
@@ -800,7 +969,7 @@ const App = () => {
                 tasks={displayedTasks} 
                 projects={data.projects} 
                 users={data.users}
-                viewMode="group" // Forced Group Mode
+                viewMode="group" 
                 searchTerm={searchTerm}
                 onUpdateTask={handleUpdateTask}
                 onSelectProject={(id) => { setSelectedProjectId(id); }}
@@ -813,32 +982,42 @@ const App = () => {
       
       case 'timeline':
         return (
-          <TimelineView 
-            tasks={activeTasks}
-            allocations={data.allocations}
-            currentUser={data.currentUser}
-            users={data.users}
-            viewingUserId={viewingUserId === 'ALL' ? data.currentUser.id : viewingUserId} 
-            onUpdateTask={handleUpdateTask}
-            onAddAllocation={handleAddAllocation}
-            onUpdateAllocation={handleUpdateAllocation}
-            onRemoveAllocation={handleRemoveAllocation}
-            onSwitchUser={setViewingUserId}
-            onSelectTask={setSelectedTask} 
-          />
+          <>
+            <TimelineView 
+              tasks={activeTasks}
+              allocations={data.allocations}
+              currentUser={data.currentUser}
+              users={data.users}
+              viewingUserId={viewingUserId === 'ALL' ? data.currentUser.id : viewingUserId} 
+              onUpdateTask={handleUpdateTask}
+              onAddAllocation={handleAddAllocation}
+              onUpdateAllocation={handleUpdateAllocation}
+              onRemoveAllocation={handleRemoveAllocation}
+              onSwitchUser={setViewingUserId}
+              onSelectTask={setSelectedTask}
+              onOpenRoutineManager={() => handleNavigate('routines')}
+              onTriggerTutorial={handleTriggerTutorial} // NEW: Pass handler
+            />
+          </>
+        );
+
+      case 'routines':
+        return (
+           <RoutineManager
+              currentUser={data.currentUser}
+              users={data.users}
+              templates={data.routineTemplates}
+              onSaveTemplate={handleSaveRoutineTemplate}
+              onDeleteTemplate={handleDeleteRoutineTemplate}
+              onToggleTemplate={handleToggleRoutineTemplate}
+           />
         );
 
       case 'knowledge':
-        return (
-          <KnowledgeBase 
-            tasks={activeTasks} 
-            users={data.users} 
-            onSelectTask={setSelectedTask} 
-          />
-        );
+        return <KnowledgeBase tasks={activeTasks} users={data.users} onSelectTask={setSelectedTask} />;
 
       case 'announcement':
-        // Determine styles based on level
+        // ... (Existing Announcement view logic)
         const annLevel = activeAnnouncement?.level || 'info';
         let annStyles = {
           bg: 'bg-stone-50',
@@ -881,11 +1060,9 @@ const App = () => {
 
              {/* Current Active Announcement Card */}
              <div className={`rounded-[2.5rem] p-10 border shadow-lg relative overflow-hidden ${annStyles.bg} ${annStyles.border}`}>
-                {/* Background Decoration */}
                 <div className="absolute top-0 right-0 p-8 opacity-5">
                    <annStyles.icon size={200} />
                 </div>
-                
                 <div className="relative z-10">
                   <div className="flex items-center gap-4 mb-8">
                      <div className={`w-16 h-16 rounded-2xl flex items-center justify-center ${annStyles.iconBg} ${annStyles.iconColor} shadow-sm`}>
@@ -898,7 +1075,6 @@ const App = () => {
                         <h2 className={`text-3xl font-bold mt-2 ${annStyles.title}`}>最新公告內容</h2>
                      </div>
                   </div>
-                  
                   {activeAnnouncement ? (
                     <div className="bg-white/80 backdrop-blur-sm p-8 rounded-[2rem] border border-white/50 shadow-sm">
                       <div className="prose prose-lg prose-stone max-w-none text-stone-700 leading-loose whitespace-pre-wrap font-medium">
@@ -925,17 +1101,15 @@ const App = () => {
                    </h3>
                    <div className="h-px bg-stone-200 flex-1"></div>
                 </div>
-
                 <div className="space-y-4">
                    {data.announcements
-                     .filter(a => !a.isActive) // Show inactive ones in history
+                     .filter(a => !a.isActive)
                      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
                      .map(ann => {
                        let levelStyle = 'bg-stone-100 text-stone-500';
                        if (ann.level === 'urgent') levelStyle = 'bg-red-100 text-red-600';
                        else if (ann.level === 'warning') levelStyle = 'bg-amber-100 text-amber-600';
                        else if (ann.level === 'info') levelStyle = 'bg-blue-50 text-blue-600';
-
                        return (
                          <div key={ann.id} className="bg-white p-5 rounded-2xl border border-stone-100 shadow-sm flex gap-5 items-center opacity-80 hover:opacity-100 transition-all hover:shadow-md">
                             <div className="flex flex-col items-center min-w-[80px]">
@@ -963,7 +1137,7 @@ const App = () => {
              </div>
           </div>
         );
-        
+
       case 'admin':
         return (
           <AdminCenter 
@@ -974,6 +1148,7 @@ const App = () => {
             onCreateAnnouncement={handleCreateAnnouncement}
             onUpdateAnnouncement={handleUpdateAnnouncement}
             onDeleteAnnouncement={handleDeleteAnnouncement}
+            onUpdateTutorial={handleUpdateTutorial} // Pass handler
           />
         );
 
@@ -989,6 +1164,13 @@ const App = () => {
       currentUser={data.currentUser}
       activeAnnouncement={activeAnnouncement}
     >
+      {/* 
+        If user is on 'timeline' tab, we render TimelineView.
+        Otherwise we use renderContent() to switch between other tabs.
+        Note: renderContent() also contains case 'timeline' but it's shadowed here if we use ternary.
+        Actually, we can simplify this if renderContent() handles everything, 
+        but we keep existing structure to minimize diffs.
+      */}
       {renderContent()}
       
       {/* Modals */}
@@ -1013,6 +1195,14 @@ const App = () => {
           onConvertToKnowledge={handleConvertToKnowledge}
           onDelete={handleDeleteTask}
           onNavigateToTimeline={() => { setSelectedTask(null); handleNavigate('timeline'); }} 
+        />
+      )}
+
+      {/* Tutorial Modal Overlay */}
+      {activeTutorial && (
+        <TutorialModal 
+          tip={activeTutorial} 
+          onClose={() => setActiveTutorial(null)} 
         />
       )}
     </Layout>

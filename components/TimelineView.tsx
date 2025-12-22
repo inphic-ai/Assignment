@@ -1,6 +1,7 @@
+
 import React, { useState, useRef } from 'react';
 import { Task, TaskAllocation, User, GoalCategory } from '../types';
-import { Clock, AlertTriangle, GripVertical, CheckCircle2, Briefcase, Plus, ChevronDown, ChevronUp, Play, Square, Users, Sunrise, Sun, Sunset, SortAsc, History, ChevronLeft, ChevronRight, Calendar, Layers, Tag, CalendarDays } from 'lucide-react';
+import { Clock, AlertTriangle, GripVertical, CheckCircle2, Briefcase, Plus, ChevronDown, ChevronUp, Play, Square, Users, Sunrise, Sun, Sunset, SortAsc, History, ChevronLeft, ChevronRight, Calendar, Layers, Tag, CalendarDays, CalendarClock } from 'lucide-react';
 
 interface TimelineViewProps {
   tasks: Task[];
@@ -14,11 +15,14 @@ interface TimelineViewProps {
   onRemoveAllocation: (allocationId: string) => void;
   onSwitchUser: (userId: string) => void;
   onSelectTask: (task: Task) => void; // Added for opening details
+  onOpenRoutineManager?: () => void; // NEW
+  onTriggerTutorial?: (key: string) => void; // NEW: For showing instructions
 }
 
 const TimelineView: React.FC<TimelineViewProps> = ({ 
   tasks, allocations, currentUser, users, viewingUserId,
-  onUpdateTask, onUpdateAllocation, onAddAllocation, onRemoveAllocation, onSwitchUser, onSelectTask
+  onUpdateTask, onUpdateAllocation, onAddAllocation, onRemoveAllocation, onSwitchUser, onSelectTask,
+  onOpenRoutineManager, onTriggerTutorial
 }) => {
   const [timeRange, setTimeRange] = useState<'all' | 'am' | 'pm'>('all');
   const [sortMethod, setSortMethod] = useState<'default' | 'time' | 'priority' | 'spent'>('default');
@@ -133,7 +137,8 @@ const TimelineView: React.FC<TimelineViewProps> = ({
     if (!task) return;
 
     if (!isToday) {
-      alert("時間分配限制：僅能將任務拖曳至「今日」進行計時！");
+      if (onTriggerTutorial) onTriggerTutorial('TIMELINE_NOT_TODAY');
+      else alert("時間分配限制：僅能將任務拖曳至「今日」進行計時！");
       return;
     }
 
@@ -141,7 +146,8 @@ const TimelineView: React.FC<TimelineViewProps> = ({
     const currentHour = new Date().getHours();
     
     if (slotHour < currentHour) {
-      alert(`時光不可逆：無法將任務拖曳至已經過去的時段 (${slot})。`);
+      if (onTriggerTutorial) onTriggerTutorial('TIMELINE_PAST_DRAG');
+      else alert(`時光不可逆：無法將任務拖曳至已經過去的時段 (${slot})。`);
       return;
     }
 
@@ -150,7 +156,8 @@ const TimelineView: React.FC<TimelineViewProps> = ({
 
     const runningCount = allocations.filter(a => a.userId === viewingUserId && a.status === 'running').length;
     if (runningCount >= 2) {
-       alert("系統提醒：為確保專注，只能同時計時兩個工作！已取消本次拖曳。");
+       if (onTriggerTutorial) onTriggerTutorial('TIMELINE_OVERLOAD');
+       else alert("系統提醒：為確保專注，只能同時計時兩個工作！已取消本次拖曳。");
        return;
     }
 
@@ -188,7 +195,8 @@ const TimelineView: React.FC<TimelineViewProps> = ({
   const handleStartAllocation = (allocId: string) => {
      const runningCount = allocations.filter(a => a.userId === viewingUserId && a.status === 'running').length;
      if (runningCount >= 2) {
-       alert("系統提醒：只能同時進行兩個計時工作！請先結束一個任務。");
+       if (onTriggerTutorial) onTriggerTutorial('TIMELINE_OVERLOAD');
+       else alert("系統提醒：只能同時進行兩個計時工作！請先結束一個任務。");
        return;
      }
      onUpdateAllocation(allocId, { status: 'running', actualStartAt: new Date().toISOString() });
@@ -394,6 +402,25 @@ const TimelineView: React.FC<TimelineViewProps> = ({
         {/* LEFT SIDEBAR: TASK POOLS (No Scroll container, expands fully) */}
         <div className="lg:w-1/3 flex flex-col gap-6 min-w-[300px]">
            
+           {/* NEW: Routine Management Entry */}
+           {onOpenRoutineManager && (
+             <button 
+               onClick={onOpenRoutineManager}
+               className="bg-white border-2 border-dashed border-stone-200 p-4 rounded-[1.5rem] flex items-center justify-between text-stone-400 hover:text-amber-600 hover:border-amber-300 hover:bg-amber-50 transition-all group shadow-sm"
+             >
+               <div className="flex items-center gap-3">
+                 <div className="w-10 h-10 rounded-xl bg-stone-100 flex items-center justify-center group-hover:bg-white text-stone-500 group-hover:text-amber-500 transition-colors">
+                   <CalendarClock size={20} />
+                 </div>
+                 <div className="text-left">
+                   <h4 className="font-bold text-sm">例行工作管理</h4>
+                   <p className="text-xs font-normal">設定每日/每週自動排程</p>
+                 </div>
+               </div>
+               <Plus size={20} className="mr-2" />
+             </button>
+           )}
+
            {/* 1. Unscheduled Daily/Misc */}
            <div className="bg-stone-50 rounded-[1.5rem] border border-stone-200 shadow-sm overflow-hidden h-fit">
               <div className="p-4 bg-stone-100/50 border-b border-stone-200 flex justify-between items-center">
