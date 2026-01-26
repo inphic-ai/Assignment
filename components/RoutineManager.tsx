@@ -1,7 +1,10 @@
-
 import React, { useState } from 'react';
-import { RoutineTemplate, User, GoalCategory, TimeType, RecurrenceType, RoutineStrategy, RoutineStatus } from '../types';
-import { X, CalendarClock, Plus, Trash2, Check, User as UserIcon, Users, Power, Snowflake, LayoutGrid, List, ArrowRight, RefreshCw, Calendar, AlertCircle, Edit2 } from 'lucide-react';
+import { RoutineTemplate, User, GoalCategory, TimeType, RecurrenceType, RoutineStrategy, RoutineStatus, Task } from '../types';
+import { 
+  X, CalendarClock, Plus, Trash2, Check, User as UserIcon, Users, 
+  Power, Snowflake, LayoutGrid, List, ArrowRight, RefreshCw, 
+  Calendar, AlertCircle, Edit2, ShieldAlert, Zap, Send, CheckCircle2
+} from 'lucide-react';
 import { INITIAL_GOALS, generateId } from '../constants';
 
 interface RoutineManagerProps {
@@ -11,20 +14,22 @@ interface RoutineManagerProps {
   onSaveTemplate: (template: RoutineTemplate) => void;
   onDeleteTemplate: (id: string) => void;
   onToggleTemplate: (id: string, status: RoutineStatus) => void;
+  onInstantiate: (template: RoutineTemplate) => void; 
 }
 
 const RoutineManager: React.FC<RoutineManagerProps> = ({
-  currentUser, users, templates, onSaveTemplate, onDeleteTemplate, onToggleTemplate
+  currentUser, users, templates, onSaveTemplate, onDeleteTemplate, onToggleTemplate, onInstantiate
 }) => {
   const [mode, setMode] = useState<'list' | 'edit'>('list');
   const [viewStyle, setViewStyle] = useState<'card' | 'list'>('card');
   const [filterStatus, setFilterStatus] = useState<RoutineStatus | 'all'>('all');
   const [editingId, setEditingId] = useState<string | null>(null);
+  const [deployingId, setDeployingId] = useState<string | null>(null); 
 
-  // Form State
   const [formData, setFormData] = useState<Partial<RoutineTemplate>>({
     title: '',
     description: '',
+    aiRiskHint: '',
     goal: '行政',
     timeType: 'misc',
     timeValue: 15,
@@ -38,7 +43,16 @@ const RoutineManager: React.FC<RoutineManagerProps> = ({
 
   const isAdmin = currentUser.role === 'admin' || currentUser.role === 'manager';
 
-  // --- Helpers ---
+  const handleInstantDeploy = (t: RoutineTemplate) => {
+    setDeployingId(t.id);
+    // 如果是已完成狀態，點擊重複派發需變回 active
+    if (t.status === 'completed') {
+      onToggleTemplate(t.id, 'active');
+    }
+    onInstantiate(t);
+    setTimeout(() => setDeployingId(null), 1000);
+  };
+
   const getAssigneeNames = (ids: string[]) => {
     if (!ids || ids.length === 0) return '未分配';
     if (ids.length === users.length) return '全體人員';
@@ -50,20 +64,21 @@ const RoutineManager: React.FC<RoutineManagerProps> = ({
   const handleEdit = (template?: RoutineTemplate) => {
     if (template) {
       setEditingId(template.id);
-      // Migration safety for old templates handled in App.tsx, but good to be safe here
       setFormData({ 
         ...template,
         strategy: template.strategy || 'static',
         assigneeIds: template.assigneeIds || [],
         currentRotationIndex: template.currentRotationIndex || 0,
         validFrom: template.validFrom || new Date().toISOString().split('T')[0],
-        status: template.status || 'active'
+        status: template.status || 'active',
+        aiRiskHint: template.aiRiskHint || ''
       });
     } else {
       setEditingId(null);
       setFormData({
         title: '',
         description: '',
+        aiRiskHint: '',
         goal: '行政',
         timeType: 'misc',
         timeValue: 15,
@@ -106,19 +121,17 @@ const RoutineManager: React.FC<RoutineManagerProps> = ({
       id: editingId || generateId('ROUTINE'),
       title: formData.title!,
       description: formData.description || '',
+      aiRiskHint: formData.aiRiskHint || '',
       goal: formData.goal as GoalCategory,
       timeType: formData.timeType as TimeType,
       timeValue: formData.timeValue || 15,
       recurrence: formData.recurrence as RecurrenceType,
       recurrenceDay: formData.recurrenceDay,
-      
       strategy: formData.strategy as RoutineStrategy,
       assigneeIds: formData.assigneeIds!,
       currentRotationIndex: formData.currentRotationIndex || 0,
-      
       validFrom: formData.validFrom!,
       validTo: formData.validTo,
-
       creatorId: editingId ? (templates.find(t => t.id === editingId)?.creatorId || currentUser.id) : currentUser.id,
       status: formData.status as RoutineStatus,
       lastGeneratedDate: templates.find(t => t.id === editingId)?.lastGeneratedDate
@@ -128,12 +141,9 @@ const RoutineManager: React.FC<RoutineManagerProps> = ({
     setMode('list');
   };
 
-  // Filter templates
   const filteredTemplates = templates.filter(t => {
-    // Users can see templates they created OR templates assigned to them. Admins see all.
     const isMyTemplate = t.creatorId === currentUser.id || t.assigneeIds?.includes(currentUser.id) || isAdmin;
     if (!isMyTemplate) return false;
-    
     if (filterStatus === 'all') return true;
     return t.status === filterStatus;
   });
@@ -143,24 +153,23 @@ const RoutineManager: React.FC<RoutineManagerProps> = ({
       <header className="flex flex-col md:flex-row justify-between items-center shrink-0 gap-4">
         <div>
            <h1 className="text-3xl font-bold text-stone-800 mb-2">例行工作管理</h1>
-           <p className="text-stone-500">設定個人或團隊的週期性排程與輪值任務</p>
+           <p className="text-stone-50">設定個人或團隊的週期性排程與輪值任務</p>
         </div>
       </header>
 
-      {/* Main Content Area */}
       <div className="bg-white rounded-[2rem] border border-stone-200 shadow-sm overflow-hidden min-h-[600px] flex flex-col">
           {mode === 'list' ? (
             <>
               {/* Toolbar */}
               <div className="px-6 py-4 border-b border-stone-100 flex flex-col md:flex-row gap-4 items-center justify-between bg-white">
                  <div className="flex bg-stone-100 p-1 rounded-xl">
-                    {['all', 'active', 'frozen', 'draft'].map(s => (
+                    {['all', 'active', 'completed', 'frozen', 'draft'].map(s => (
                       <button
                         key={s}
                         onClick={() => setFilterStatus(s as any)}
                         className={`px-4 py-1.5 rounded-lg text-xs font-bold capitalize transition-all ${filterStatus === s ? 'bg-white shadow-sm text-stone-800' : 'text-stone-400 hover:text-stone-600'}`}
                       >
-                        {s === 'all' ? '全部' : s === 'active' ? '執行中' : s === 'frozen' ? '已凍結' : '草稿'}
+                        {s === 'all' ? '全部' : s === 'active' ? '執行中' : s === 'completed' ? '已完成' : s === 'frozen' ? '已凍結' : '草稿'}
                       </button>
                     ))}
                  </div>
@@ -193,16 +202,18 @@ const RoutineManager: React.FC<RoutineManagerProps> = ({
                           key={t.id} 
                           className={`bg-white border rounded-2xl p-5 transition-all hover:shadow-md group relative overflow-hidden ${
                             t.status === 'frozen' ? 'border-stone-200 opacity-70' : 
+                            t.status === 'completed' ? 'border-emerald-100 bg-emerald-50/10' :
                             t.status === 'draft' ? 'border-dashed border-stone-300' : 'border-stone-200'
                           } ${viewStyle === 'list' ? 'flex items-center justify-between gap-4' : 'flex flex-col'}`}
                         >
                            {/* Status Stripe */}
                            <div className={`absolute left-0 top-0 bottom-0 w-1.5 ${
                              t.status === 'active' ? 'bg-emerald-500' : 
+                             t.status === 'completed' ? 'bg-emerald-300' :
                              t.status === 'frozen' ? 'bg-blue-300' : 'bg-stone-300'
                            }`}></div>
 
-                           <div className={viewStyle === 'list' ? 'flex-1 pl-2' : 'mb-4 pl-2'}>
+                           <div className={viewStyle === 'list' ? 'flex-1' : 'mb-4 pl-2'}>
                               <div className="flex items-center justify-between mb-2">
                                 <div className="flex items-center gap-2">
                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded uppercase flex items-center gap-1 ${
@@ -215,63 +226,55 @@ const RoutineManager: React.FC<RoutineManagerProps> = ({
                                      {t.recurrence === 'daily' ? '每日' : t.recurrence === 'workday' ? '工作日' : t.recurrence === 'weekly' ? '每週' : '每月'}
                                    </span>
                                 </div>
-                                {/* Actions for Card View */}
-                                {viewStyle === 'card' && (
-                                  <div className="flex gap-1">
-                                     <button onClick={() => handleEdit(t)} className="p-1.5 hover:bg-stone-100 rounded text-stone-400 hover:text-stone-800"><Edit2 size={14}/></button>
-                                  </div>
-                                )}
+                                <div className="flex gap-1">
+                                   <button onClick={() => handleEdit(t)} className="p-1.5 hover:bg-stone-100 rounded text-stone-400 hover:text-stone-800"><Edit2 size={14}/></button>
+                                </div>
                               </div>
                               
-                              <h3 className={`font-bold text-stone-800 ${viewStyle === 'list' ? 'text-sm' : 'text-lg'}`}>{t.title}</h3>
+                              <h3 className={`font-bold text-stone-800 flex items-center gap-2 ${viewStyle === 'list' ? 'text-sm' : 'text-lg'}`}>
+                                {t.title}
+                                {t.status === 'completed' && <CheckCircle2 size={16} className="text-emerald-500" />}
+                              </h3>
                               
                               <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-stone-500">
                                  <div className="flex items-center gap-1 bg-stone-50 px-2 py-1 rounded">
                                     <Users size={12} />
                                     <span className="truncate max-w-[150px]">{getAssigneeNames(t.assigneeIds || [])}</span>
                                  </div>
-                                 {t.strategy === 'rotating' && (
-                                   <span className="flex items-center gap-1 text-purple-600 bg-purple-50 px-2 py-1 rounded">
-                                     <ArrowRight size={10} /> 
-                                     下位: {users.find(u => u.id === t.assigneeIds[t.currentRotationIndex])?.name || '未知'}
-                                   </span>
-                                 )}
                               </div>
-                              
-                              {t.validTo && (
-                                <div className="mt-2 flex items-center gap-2 text-[10px] text-stone-400">
-                                   <Calendar size={10} /> 有效期至 {t.validTo}
-                                </div>
-                              )}
                            </div>
 
-                           {/* List View Actions */}
-                           {viewStyle === 'list' && (
-                             <div className="flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button onClick={() => onToggleTemplate(t.id, t.status === 'active' ? 'frozen' : 'active')} className="p-2 hover:bg-stone-100 rounded text-stone-400 hover:text-blue-500" title={t.status==='active' ? '凍結' : '啟用'}>
-                                   {t.status === 'active' ? <Snowflake size={16}/> : <Power size={16}/>}
-                                </button>
-                                <button onClick={() => handleEdit(t)} className="p-2 hover:bg-stone-100 rounded text-stone-400 hover:text-stone-800" title="編輯"><Edit2 size={16}/></button>
-                                <button onClick={() => {if(confirm('刪除?')) onDeleteTemplate(t.id)}} className="p-2 hover:bg-stone-100 rounded text-stone-400 hover:text-red-500" title="刪除"><Trash2 size={16}/></button>
-                             </div>
-                           )}
-
-                           {/* Card View Bottom Actions */}
-                           {viewStyle === 'card' && (
-                             <div className="mt-auto pt-4 border-t border-stone-100 flex justify-between items-center">
-                                <span className={`text-[10px] font-bold ${t.status === 'active' ? 'text-emerald-500' : 'text-stone-400'}`}>
-                                  {t.status === 'active' ? '● 執行中' : t.status === 'frozen' ? '● 已凍結' : '○ 草稿'}
+                           <div className="mt-auto pt-4 border-t border-stone-100 flex justify-between items-center">
+                              <div className="flex items-center gap-3">
+                                <span className={`text-[10px] font-bold ${t.status === 'active' ? 'text-emerald-500' : t.status === 'completed' ? 'text-emerald-400' : 'text-stone-400'}`}>
+                                  {t.status === 'active' ? '● 執行中' : t.status === 'completed' ? '● 已完成' : t.status === 'frozen' ? '● 已凍結' : '○ 草稿'}
                                 </span>
-                                <div className="flex gap-2">
-                                  <button onClick={() => onToggleTemplate(t.id, t.status === 'active' ? 'frozen' : 'active')} className="text-xs font-bold text-stone-400 hover:text-stone-600">
-                                    {t.status === 'active' ? '凍結' : '啟用'}
+                              </div>
+                              
+                              <div className="flex gap-2">
+                                {(t.status === 'active' || t.status === 'completed') && (
+                                  <button 
+                                    onClick={() => handleInstantDeploy(t)}
+                                    disabled={deployingId === t.id}
+                                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
+                                      deployingId === t.id 
+                                        ? 'bg-emerald-500 text-white shadow-lg scale-95' 
+                                        : 'bg-orange-50 text-orange-600 hover:bg-orange-500 hover:text-white'
+                                    }`}
+                                  >
+                                    {deployingId === t.id ? <Check size={14} /> : <Zap size={14} />}
+                                    {deployingId === t.id ? '部署成功' : (t.status === 'completed' ? '重複派發重新啟動' : '立即重複派發')}
                                   </button>
-                                  <button onClick={() => {if(confirm('刪除?')) onDeleteTemplate(t.id)}} className="text-xs font-bold text-stone-400 hover:text-red-500">
-                                    刪除
-                                  </button>
-                                </div>
-                             </div>
-                           )}
+                                )}
+                                
+                                <button onClick={() => onToggleTemplate(t.id, t.status === 'active' ? 'frozen' : 'active')} className="text-[10px] font-bold text-stone-400 hover:text-stone-600 px-2">
+                                  {t.status === 'active' ? '凍結' : '啟用'}
+                                </button>
+                                <button onClick={() => {if(confirm('刪除?')) onDeleteTemplate(t.id)}} className="text-[10px] font-bold text-stone-300 hover:text-red-500 px-2">
+                                  刪除
+                                </button>
+                              </div>
+                           </div>
                         </div>
                       ))}
                    </div>
@@ -279,7 +282,6 @@ const RoutineManager: React.FC<RoutineManagerProps> = ({
               </div>
             </>
           ) : (
-            // --- EDIT FORM ---
             <div className="flex-1 overflow-y-auto p-8 bg-stone-50">
                <div className="max-w-3xl mx-auto space-y-6">
                   <div className="flex items-center justify-between mb-4">
@@ -291,7 +293,6 @@ const RoutineManager: React.FC<RoutineManagerProps> = ({
                     </h3>
                   </div>
 
-                  {/* Basic Info */}
                   <div className="bg-white p-8 rounded-3xl shadow-sm border border-stone-100 space-y-6">
                      <h4 className="text-lg font-bold text-stone-800 flex items-center gap-2">
                        <LayoutGrid size={20} className="text-amber-500" /> 基本資訊
@@ -305,6 +306,30 @@ const RoutineManager: React.FC<RoutineManagerProps> = ({
                          placeholder="例：填寫日報、倒垃圾"
                        />
                      </div>
+                     
+                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div className="space-y-2">
+                           <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest px-1">核心戰略描述</label>
+                           <textarea 
+                             value={formData.description} 
+                             onChange={e => setFormData({...formData, description: e.target.value})} 
+                             placeholder="此例行任務的具體執行 SOP 或細節..." 
+                             className="w-full p-4 rounded-xl border border-stone-200 bg-stone-50 text-sm font-medium h-32 resize-none outline-none focus:bg-white transition-all"
+                           />
+                        </div>
+                        <div className="space-y-2">
+                           <label className="text-[10px] font-black text-red-400 uppercase tracking-widest px-1 flex items-center gap-1">
+                             <ShieldAlert size={12}/> 預設戰術風險
+                           </label>
+                           <textarea 
+                             value={formData.aiRiskHint} 
+                             onChange={e => setFormData({...formData, aiRiskHint: e.target.value})} 
+                             placeholder="預先設定此任務常見的瓶頸或風險提示..." 
+                             className="w-full p-4 rounded-xl border border-red-100 bg-red-50/10 text-sm font-black text-red-900/70 h-32 resize-none outline-none focus:bg-white italic transition-all"
+                           />
+                        </div>
+                     </div>
+
                      <div className="grid grid-cols-2 gap-6">
                         <div>
                           <label className="block text-sm font-bold text-stone-600 mb-2">目標分類</label>
@@ -338,13 +363,11 @@ const RoutineManager: React.FC<RoutineManagerProps> = ({
                      </div>
                   </div>
 
-                  {/* Schedule & Assignment */}
                   <div className="bg-white p-8 rounded-3xl shadow-sm border border-stone-100 space-y-6">
                      <h4 className="text-lg font-bold text-stone-800 flex items-center gap-2">
                        <CalendarClock size={20} className="text-amber-500" /> 排程與指派
                      </h4>
                      
-                     {/* Assignment Strategy */}
                      <div className="flex gap-4">
                         <label className={`flex-1 p-5 rounded-2xl border-2 cursor-pointer transition-all ${formData.strategy === 'static' ? 'border-amber-400 bg-amber-50' : 'border-stone-200 hover:border-stone-300'}`}>
                            <input type="radio" className="hidden" checked={formData.strategy === 'static'} onChange={() => setFormData({...formData, strategy: 'static'})} />
@@ -358,7 +381,6 @@ const RoutineManager: React.FC<RoutineManagerProps> = ({
                         </label>
                      </div>
 
-                     {/* User Selector */}
                      <div className="bg-stone-50 p-4 rounded-2xl border border-stone-100">
                         <div className="flex justify-between items-center mb-3">
                            <label className="text-sm font-bold text-stone-600">選擇人員 ({formData.assigneeIds?.length || 0})</label>
@@ -388,40 +410,6 @@ const RoutineManager: React.FC<RoutineManagerProps> = ({
                         </div>
                      </div>
 
-                     {/* Rotating Specific: Order & Next */}
-                     {formData.strategy === 'rotating' && formData.assigneeIds && formData.assigneeIds.length > 0 && (
-                        <div className="bg-purple-50 p-5 rounded-2xl border border-purple-100">
-                           <label className="text-sm font-bold text-purple-800 mb-3 block flex items-center gap-2">
-                             <RefreshCw size={14}/> 設定輪值順序與下一位執行者
-                           </label>
-                           <div className="flex items-center gap-3 overflow-x-auto pb-2">
-                              {formData.assigneeIds.map((uid, idx) => {
-                                 const isNext = idx === (formData.currentRotationIndex || 0);
-                                 return (
-                                   <div key={uid} 
-                                     onClick={() => setFormData({...formData, currentRotationIndex: idx})}
-                                     className={`flex-shrink-0 px-4 py-3 rounded-xl border-2 text-sm font-bold cursor-pointer transition-all relative ${
-                                       isNext ? 'bg-white border-purple-500 shadow-md text-purple-700' : 'bg-white/50 border-purple-100 text-purple-300 hover:border-purple-200'
-                                     }`}
-                                   >
-                                      {isNext && (
-                                        <span className="absolute -top-2.5 left-1/2 -translate-x-1/2 bg-purple-500 text-white text-[10px] px-2 rounded-full">
-                                          NEXT
-                                        </span>
-                                      )}
-                                      <span className="mr-2 text-[10px] opacity-50">{idx + 1}.</span>
-                                      {users.find(u => u.id === uid)?.name}
-                                   </div>
-                                 )
-                              })}
-                           </div>
-                           <p className="text-xs text-purple-600/70 mt-2 flex items-center gap-1">
-                             <AlertCircle size={12} /> 提示：點擊上方卡片可手動指定下一位執行者 (可作為臨時調班使用)
-                           </p>
-                        </div>
-                     )}
-
-                     {/* Date Range & Frequency */}
                      <div className="grid grid-cols-2 gap-6 pt-4 border-t border-stone-100">
                         <div>
                            <label className="block text-sm font-bold text-stone-600 mb-2">生效日期 (起)</label>
@@ -457,24 +445,6 @@ const RoutineManager: React.FC<RoutineManagerProps> = ({
                               <option value="monthly">每月</option>
                            </select>
                         </div>
-                        {(formData.recurrence === 'weekly' || formData.recurrence === 'monthly') && (
-                           <div>
-                              <label className="block text-sm font-bold text-stone-600 mb-2">
-                                {formData.recurrence === 'weekly' ? '星期幾' : '日期 (號)'}
-                              </label>
-                              <select
-                                value={formData.recurrenceDay || 1}
-                                onChange={e => setFormData({...formData, recurrenceDay: Number(e.target.value)})}
-                                className="w-full p-3 rounded-xl border border-stone-200 bg-white text-sm"
-                              >
-                                {formData.recurrence === 'weekly' ? (
-                                  ['日','一','二','三','四','五','六'].map((d, i) => <option key={i} value={i}>週{d}</option>)
-                                ) : (
-                                  Array.from({length:31}, (_,i)=>i+1).map(d => <option key={d} value={d}>{d}號</option>)
-                                )}
-                              </select>
-                           </div>
-                        )}
                      </div>
                   </div>
 

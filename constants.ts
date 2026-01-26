@@ -2,6 +2,7 @@
 import { GoalCategory, TimeType, TutorialTip } from './types';
 import { LayoutGrid, List, Smartphone, Folder, Kanban } from 'lucide-react';
 
+// Fix: Update INITIAL_GOALS to match the GoalCategory union type in types.ts
 export const INITIAL_GOALS: GoalCategory[] = [
   '業務', '人資', '管理', '倉儲', '維修', '行銷', '售後', '行政'
 ];
@@ -11,6 +12,7 @@ export const GOALS_REQUIRING_PROOF: GoalCategory[] = [
   '維修', '售後', '倉儲'
 ];
 
+// --- NEW: Default Tutorials ---
 export const INITIAL_TUTORIALS: TutorialTip[] = [
   {
     id: 'tut-001',

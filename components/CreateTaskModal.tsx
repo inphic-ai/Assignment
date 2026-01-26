@@ -1,547 +1,257 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { 
-  X, Mic, Wand2, Loader2, Plus, ArrowRight, ArrowLeft, Check, 
-  User as UserIcon, Youtube, Link as LinkIcon, Image as ImageIcon,
-  Merge, Scissors, Square, CheckSquare, Trash2
+  X, Wand2, Loader2, Plus, ArrowRight, ArrowLeft, Check, 
+  User as UserIcon, UsersRound, Zap, Sun, Briefcase, Edit3,
+  LayoutGrid, Users, Target, Clock, Grid2X2, UserPlus, Search, ChevronUp,
+  FolderKanban, Sparkles, ListChecks, MessageSquare, Paperclip, ImageIcon,
+  ShieldAlert, Upload, FileText
 } from 'lucide-react';
-import { TimeType, RoleType, GoalCategory, Task, Project, User, Attachment } from '../types';
+import { TimeType, RoleType, GoalCategory, Task, Project, User } from '../types';
 import { INITIAL_GOALS, generateId } from '../constants';
 import { breakdownProjectTask, BreakdownResult } from '../services/geminiService';
 
 interface CreateTaskModalProps {
-  users: User[]; // Passed to select assignee
+  users: User[]; 
   currentUser: User;
+  projects: Project[];
   onClose: () => void;
   onCreate: (tasks: Partial<Task>[], project?: Partial<Project>) => void;
 }
 
-const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ users, currentUser, onClose, onCreate }) => {
+const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ users, currentUser, projects, onClose, onCreate }) => {
   const [step, setStep] = useState<number>(1);
   const [loading, setLoading] = useState(false);
   const [role, setRole] = useState<RoleType>('created_by_me');
-  const [assigneeId, setAssigneeId] = useState<string>(currentUser.id); // Default to self
+  const [assigneeId, setAssigneeId] = useState<string>(currentUser.id); 
   const [mode, setMode] = useState<TimeType | 'project'>('misc');
   
   // Form Data
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [riskHint, setRiskHint] = useState(''); // 新增風險預評估欄位
   const [goal, setGoal] = useState<GoalCategory>('行政');
   const [timeValue, setTimeValue] = useState<number>(30); 
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
   
-  // Attachments
-  const [attachments, setAttachments] = useState<Attachment[]>([]);
-  const [pastedLink, setPastedLink] = useState('');
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  
-  // AI Draft Data
+  // AI / Sub-task Data
   const [aiDrafts, setAiDrafts] = useState<BreakdownResult[]>([]);
-  const [projectTitle, setProjectTitle] = useState('');
-  const [selectedDraftIndices, setSelectedDraftIndices] = useState<number[]>([]);
 
   const handleNext = async () => {
-    if (step === 1) { // Role Selection
-      setStep(2);
-    } else if (step === 2) { // Type Selection
-      setStep(3);
-    } else if (step === 3 && mode === 'project') {
-      // AI Breakdown
-      setLoading(true);
-      try {
-        const drafts = await breakdownProjectTask(description);
-        setAiDrafts(drafts);
-        setProjectTitle(title || "新專案");
-        setStep(4);
-      } catch (e) {
-        alert("AI 服務暫時無法使用，請檢查 API Key。");
-      } finally {
-        setLoading(false);
+    if (step === 1) setStep(2);
+    else if (step === 2) setStep(3);
+    else if (step === 3) {
+      if (mode === 'project') {
+        handleAiBreakdown();
+      } else {
+        handleSubmitSingle();
       }
-    } else if (step === 3) {
-      // Direct Create
-      handleSubmitSingle();
     }
   };
 
-  // --- Draft Manipulation Logic ---
-
-  const toggleDraftSelection = (index: number) => {
-    setSelectedDraftIndices(prev => 
-      prev.includes(index) 
-        ? prev.filter(i => i !== index)
-        : [...prev, index]
-    );
-  };
-
-  const handleMergeDrafts = () => {
-    if (selectedDraftIndices.length < 2) return;
-    
-    // Sort indices to process in order
-    const indices = [...selectedDraftIndices].sort((a, b) => a - b);
-    const itemsToMerge = indices.map(i => aiDrafts[i]);
-    const firstItem = itemsToMerge[0];
-
-    // Check if all have same time type for value summation
-    const sameType = itemsToMerge.every(i => i.suggestedType === firstItem.suggestedType);
-    const totalValue = sameType 
-      ? itemsToMerge.reduce((acc, curr) => acc + curr.suggestedValue, 0)
-      : firstItem.suggestedValue; // Default to first if types differ
-
-    const mergedItem: BreakdownResult = {
-      title: itemsToMerge.map(i => i.title).join(' + '),
-      description: itemsToMerge.map(i => i.description).join('\n---\n'),
-      suggestedType: firstItem.suggestedType,
-      suggestedValue: totalValue,
-      suggestedGoal: firstItem.suggestedGoal
-    };
-
-    // Construct new drafts array
-    const newDrafts = aiDrafts.filter((_, idx) => !selectedDraftIndices.includes(idx));
-    // Insert merged item at the position of the first selected item
-    // We append it to the filtered list for simplicity in this MVP, or splice it in.
-    // To keep order roughly correct, we can find the index of the first selected item in original array
-    // effectively replacing the group with the merged one.
-    // Simpler approach: Filter out selected, then insert `mergedItem` at `indices[0]` (adjusted for shifts).
-    // Let's just create a new array rebuilding it.
-    
-    const rebuiltDrafts = [...aiDrafts];
-    // Replace the first one with merged
-    rebuiltDrafts[indices[0]] = mergedItem;
-    // Remove the others (iterate backwards to avoid index shift issues)
-    for (let i = indices.length - 1; i > 0; i--) {
-      rebuiltDrafts.splice(indices[i], 1);
-    }
-
-    setAiDrafts(rebuiltDrafts);
-    setSelectedDraftIndices([]); // Clear selection
-  };
-
-  const handleSplitDraft = () => {
-    if (selectedDraftIndices.length !== 1) return;
-    const index = selectedDraftIndices[0];
-    const item = aiDrafts[index];
-
-    // Split into 2 parts
-    const part1: BreakdownResult = {
-      ...item,
-      title: `${item.title} (1)`,
-      suggestedValue: Math.max(1, Math.floor(item.suggestedValue / 2)) // Simple logic
-    };
-    const part2: BreakdownResult = {
-      ...item,
-      title: `${item.title} (2)`,
-      suggestedValue: Math.max(1, Math.ceil(item.suggestedValue / 2))
-    };
-
-    const newDrafts = [...aiDrafts];
-    newDrafts.splice(index, 1, part1, part2);
-    
-    setAiDrafts(newDrafts);
-    setSelectedDraftIndices([]);
-  };
-
-  const handleDeleteDraft = (index: number) => {
-    setAiDrafts(prev => prev.filter((_, i) => i !== index));
-    setSelectedDraftIndices(prev => prev.filter(i => i !== index));
-  };
-
-  // --- Attachment Logic ---
-  
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
-      const newAttachment: Attachment = {
-        id: `att-${Date.now()}`,
-        type: file.type.startsWith('image/') ? 'image' : 'file',
-        name: file.name,
-        url: URL.createObjectURL(file), 
-        size: `${(file.size / 1024).toFixed(1)} KB`,
-        uploadedAt: new Date().toISOString(),
-        uploaderId: currentUser.id
-      };
-      setAttachments([...attachments, newAttachment]);
+  const handleAiBreakdown = async () => {
+    if (!title.trim() || !description.trim()) return alert("請輸入標題與『任務描述』以便 AI 拆解");
+    setLoading(true);
+    try {
+      const drafts = await breakdownProjectTask(description);
+      setAiDrafts(drafts);
+      setStep(4);
+    } catch (e) {
+      alert("AI 拆解服務暫時不可用，請手動輸入或稍後再試。");
+    } finally {
+      setLoading(false);
     }
   };
-
-  const handleAddLink = () => {
-    if (!pastedLink) return;
-    
-    let type: 'link' | 'youtube' = 'link';
-    // Simple YouTube check
-    if (pastedLink.includes('youtube.com') || pastedLink.includes('youtu.be')) {
-      type = 'youtube';
-    }
-
-    const newAttachment: Attachment = {
-      id: `link-${Date.now()}`,
-      type,
-      name: pastedLink, // For MVP, name is the URL
-      url: pastedLink,
-      uploadedAt: new Date().toISOString(),
-      uploaderId: currentUser.id
-    };
-    setAttachments([...attachments, newAttachment]);
-    setPastedLink('');
-  };
-
-  const handlePaste = (e: React.ClipboardEvent) => {
-    // 1. Files/Images
-    if (e.clipboardData.files.length > 0) {
-      const file = e.clipboardData.files[0];
-      const newAttachment: Attachment = {
-        id: `paste-${Date.now()}`,
-        type: 'image',
-        name: 'Pasted Image.png',
-        url: URL.createObjectURL(file),
-        uploadedAt: new Date().toISOString(),
-        uploaderId: currentUser.id
-      };
-      setAttachments([...attachments, newAttachment]);
-    } 
-    // 2. Text (Potential Links) - handled by input focus usually, but catching here works too
-  };
-
-  // --- Submit Logic ---
 
   const handleSubmitSingle = () => {
+    if (!title.trim()) return alert("請輸入戰略標題");
+    
     const now = new Date();
     const due = new Date(now);
-    
     if (mode === 'misc') due.setMinutes(due.getMinutes() + timeValue);
     if (mode === 'daily') due.setHours(23, 59, 59);
-    if (mode === 'long') due.setDate(due.getDate() + timeValue);
+    if (mode === 'long' || mode === 'project') due.setDate(due.getDate() + timeValue);
 
-    const newTask: Partial<Task> = {
-      title,
-      description,
-      timeType: mode as TimeType,
-      timeValue,
-      goal,
-      role,
+    onCreate([{
+      title, description, 
+      timeType: mode === 'project' ? 'long' : mode as TimeType, 
+      timeValue, goal, role,
+      projectId: selectedProjectId,
       assigneeId: role === 'assigned_by_me' ? assigneeId : currentUser.id,
-      creatorId: currentUser.id,
-      status: 'todo',
-      startAt: now.toISOString(),
-      dueAt: due.toISOString(),
-      attachments: attachments,
-      orderDaily: 0,
-      projectId: null
-    };
-    onCreate([newTask]);
+      collaboratorIds: [], creatorId: currentUser.id, status: 'todo',
+      startAt: now.toISOString(), dueAt: due.toISOString(), orderDaily: 0,
+      aiRiskHint: riskHint || undefined // 保存手動輸入的風險
+    }]);
     onClose();
   };
 
-  const handleSubmitProject = () => {
-    const projectId = generateId('PJT');
-    const newProject: Partial<Project> = {
-      id: projectId,
-      name: projectTitle,
-      description: description,
-      archived: false,
-      projectOrder: 0
-    };
-
+  const handleSubmitBatch = () => {
     const tasks: Partial<Task>[] = aiDrafts.map((draft, idx) => {
       const now = new Date();
       const due = new Date(now);
-      due.setDate(due.getDate() + 1); 
+      if (draft.suggestedType === 'misc') due.setMinutes(due.getMinutes() + draft.suggestedValue);
+      if (draft.suggestedType === 'daily') due.setHours(23, 59, 59);
+      if (draft.suggestedType === 'long') due.setDate(due.getDate() + draft.suggestedValue);
 
       return {
         title: draft.title,
         description: draft.description,
-        timeType: draft.suggestedType,
+        timeType: draft.suggestedType as TimeType,
         timeValue: draft.suggestedValue,
         goal: draft.suggestedGoal as GoalCategory,
-        role: role,
-        assigneeId: currentUser.id, // Project drafts default to creator initially
+        role,
+        projectId: selectedProjectId,
+        assigneeId: role === 'assigned_by_me' ? assigneeId : currentUser.id,
+        collaboratorIds: [],
         creatorId: currentUser.id,
-        projectId: projectId,
         status: 'todo',
         startAt: now.toISOString(),
         dueAt: due.toISOString(),
-        orderInProject: idx
+        orderDaily: idx
       };
     });
-
-    onCreate(tasks, newProject);
+    onCreate(tasks);
     onClose();
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/50 backdrop-blur-sm p-4" onPaste={handlePaste}>
-      <div className="bg-stone-50 w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-        {/* Header */}
-        <div className="bg-stone-200 p-4 flex justify-between items-center border-b border-stone-300">
-          <h2 className="text-xl font-bold text-stone-700">新建任務嚮導</h2>
-          <button onClick={onClose} className="p-2 hover:bg-stone-300 rounded-full text-stone-600">
-            <X size={20} />
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-stone-900/60 backdrop-blur-md p-4 animate-in fade-in duration-300">
+      <div className="bg-white w-full max-w-2xl rounded-[3rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] border border-stone-100 animate-in zoom-in-95 duration-500">
+        
+        <div className="px-10 py-8 border-b border-stone-50 flex justify-between items-center bg-stone-50/50">
+          <button onClick={step > 1 ? () => setStep(step - 1) : onClose} className="text-[10px] font-black text-stone-400 hover:text-stone-900 transition-colors flex items-center gap-2 uppercase tracking-[0.2em]">
+            <ArrowLeft size={16} /> BACK
           </button>
+          <div className="flex flex-col items-center">
+            <h2 className="text-sm font-black text-stone-800 tracking-tight uppercase">戰略任務部署</h2>
+            <div className="flex gap-1.5 mt-2">
+              {[1, 2, 3, 4].map(i => (
+                <div key={i} className={`h-1 rounded-full transition-all duration-500 ${step >= i ? 'w-6 bg-stone-900' : 'w-2 bg-stone-200'}`}></div>
+              ))}
+            </div>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-stone-100 rounded-full text-stone-300 transition-all"><X size={20} /></button>
         </div>
 
-        {/* Content */}
-        <div className="p-6 flex-1 overflow-y-auto">
-          
-          {/* STEP 1: ROLE */}
+        <div className="flex-1 overflow-y-auto p-10 space-y-10 custom-scrollbar bg-white">
           {step === 1 && (
-            <div className="space-y-6">
-              <h3 className="text-2xl font-semibold text-stone-800">權責歸屬？</h3>
-              <div className="grid grid-cols-2 gap-4">
-                <button 
-                  onClick={() => { setRole('created_by_me'); setAssigneeId(currentUser.id); }}
-                  className={`p-6 rounded-2xl border-2 text-left transition-all ${role === 'created_by_me' ? 'border-amber-500 bg-amber-50 shadow-md' : 'border-stone-200 hover:border-stone-300'}`}
-                >
-                  <span className="block text-lg font-bold">我建立</span>
-                  <span className="text-sm text-stone-500">這項任務由我親自執行。</span>
-                </button>
-                <button 
-                  onClick={() => setRole('assigned_by_me')}
-                  className={`p-6 rounded-2xl border-2 text-left transition-all ${role === 'assigned_by_me' ? 'border-amber-500 bg-amber-50 shadow-md' : 'border-stone-200 hover:border-stone-300'}`}
-                >
-                  <span className="block text-lg font-bold">我指派</span>
-                  <span className="text-sm text-stone-500">指派給團隊成員執行。</span>
-                </button>
+            <div className="space-y-8 animate-in fade-in slide-in-from-right-4">
+              <div className="flex items-center gap-3 px-1"><Users size={22} className="text-orange-500" /><h3 className="text-lg font-black text-stone-800">指派權限層級</h3></div>
+              <div className="grid grid-cols-2 gap-6">
+                <button onClick={() => { setRole('created_by_me'); setAssigneeId(currentUser.id); }} className={`p-8 rounded-[2.5rem] border-2 text-left transition-all ${role === 'created_by_me' ? 'border-orange-500 bg-orange-50/20 shadow-xl' : 'border-stone-50 bg-stone-50/50 hover:border-stone-200'}`}><UserIcon size={32} className={role === 'created_by_me' ? 'text-orange-600' : 'text-stone-300'} /><div className="mt-4 font-black text-xl text-stone-800">親自執行</div><p className="text-xs text-stone-400 mt-1 font-medium">部署至個人戰略軸</p></button>
+                <button onClick={() => setRole('assigned_by_me')} className={`p-8 rounded-[2.5rem] border-2 text-left transition-all ${role === 'assigned_by_me' ? 'border-orange-500 bg-orange-50/20 shadow-xl' : 'border-stone-50 bg-stone-50/50 hover:border-stone-200'}`}><UsersRound size={32} className={role === 'assigned_by_me' ? 'text-orange-600' : 'text-stone-300'} /><div className="mt-4 font-black text-xl text-stone-800">下達指令</div><p className="text-xs text-stone-400 mt-1 font-medium">推送至隊員任務單</p></button>
               </div>
-
-              {role === 'assigned_by_me' && (
-                <div className="animate-in fade-in slide-in-from-top-2">
-                   <label className="block text-sm font-bold text-stone-600 mb-2">指派給誰？</label>
-                   <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-                      {users.filter(u => u.id !== currentUser.id).map(u => (
-                        <button 
-                          key={u.id}
-                          onClick={() => setAssigneeId(u.id)}
-                          className={`flex items-center gap-2 p-3 rounded-xl border transition-all ${assigneeId === u.id ? 'bg-stone-800 text-white border-stone-800' : 'bg-white border-stone-200 text-stone-600 hover:border-stone-400'}`}
-                        >
-                          <div className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${assigneeId === u.id ? 'bg-stone-600 text-white' : 'bg-stone-200 text-stone-500'}`}>
-                            {u.name.charAt(0)}
-                          </div>
-                          <span className="text-sm font-bold">{u.name}</span>
-                        </button>
-                      ))}
-                   </div>
-                </div>
-              )}
             </div>
           )}
 
-          {/* STEP 2: TYPE */}
           {step === 2 && (
-            <div className="space-y-6">
-              <h3 className="text-2xl font-semibold text-stone-800">任務類型？</h3>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            <div className="space-y-8 animate-in fade-in slide-in-from-right-4">
+              <div className="flex items-center gap-3 px-1"><Clock size={22} className="text-orange-500" /><h3 className="text-lg font-black text-stone-800">選擇任務維度</h3></div>
+              <div className="grid grid-cols-2 gap-4">
                 {[
-                  { id: 'misc', label: '零碎工作', sub: '分鐘 (min)', color: 'bg-green-100 border-green-300' },
-                  { id: 'daily', label: '當日工作', sub: '小時 (hr)', color: 'bg-blue-100 border-blue-300' },
-                  { id: 'long', label: '長期任務', sub: '天 (day)', color: 'bg-purple-100 border-purple-300' },
-                  { id: 'project', label: '專案工作', sub: 'AI 拆解', color: 'bg-stone-800 text-stone-50 border-stone-600', icon: Wand2 },
-                ].map((opt) => (
-                  <button 
-                    key={opt.id}
-                    onClick={() => setMode(opt.id as any)}
-                    className={`p-4 rounded-xl border-2 flex flex-col items-center justify-center text-center transition-all h-32 ${mode === opt.id ? 'ring-2 ring-offset-2 ring-stone-400 scale-105' : 'opacity-70 hover:opacity-100'} ${opt.color}`}
-                  >
-                    {opt.icon && <opt.icon className="mb-2" size={24} />}
-                    <span className="font-bold">{opt.label}</span>
-                    <span className="text-xs opacity-80">{opt.sub}</span>
-                  </button>
+                  { id: 'misc', label: '零碎雜事', desc: '分鐘級計算 (<60m)', icon: Zap, color: 'text-emerald-500' },
+                  { id: 'daily', label: '今日事', desc: '小時級執行 (1-8h)', icon: Sun, color: 'text-blue-500' },
+                  { id: 'long', label: '單項任務', desc: '天數級目標 (>1d)', icon: Briefcase, color: 'text-purple-500' },
+                  { id: 'project', label: '案子聚合', desc: 'AI 自動拆解子細項', icon: Wand2, color: 'text-orange-500' }
+                ].map((m) => (
+                  <button key={m.id} onClick={() => setMode(m.id as any)} className={`p-6 rounded-[2rem] border-2 text-left transition-all ${mode === m.id ? 'border-orange-500 bg-orange-50/20 shadow-lg' : 'border-stone-50 bg-stone-50/50 hover:border-stone-200'}`}><m.icon size={28} className={mode === m.id ? m.color : 'text-stone-300'} /><div className="mt-3 font-black text-lg text-stone-800">{m.label}</div><p className="text-[11px] text-stone-400 font-medium leading-tight">{m.desc}</p></button>
                 ))}
               </div>
             </div>
           )}
 
-          {/* STEP 3: DETAILS */}
           {step === 3 && (
-            <div className="space-y-4 animate-in fade-in slide-in-from-right-4 duration-300">
-              <h3 className="text-2xl font-semibold text-stone-800">
-                {mode === 'project' ? '描述專案內容' : '任務詳情'}
-              </h3>
+            <div className="space-y-8 animate-in fade-in slide-in-from-right-4">
+              <div className="space-y-6">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest px-2 block">戰略標題 (Required)</label>
+                  <input value={title} onChange={e => setTitle(e.target.value)} placeholder={mode === 'project' ? "輸入案子名稱..." : "任務標題..."} className="w-full p-6 bg-stone-50 border border-stone-100 rounded-[1.5rem] outline-none font-bold text-stone-800 focus:bg-white focus:ring-4 focus:ring-orange-50 transition-all text-xl" />
+                </div>
+                
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                   <div className="space-y-2">
+                      {/* Added FileText icon from lucide-react */}
+                      <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest px-2 block flex items-center gap-2"><FileText size={12} /> 核心內容描述</label>
+                      <textarea value={description} onChange={e => setDescription(e.target.value)} placeholder="具體執行細項..." className="w-full p-5 bg-stone-50 border border-stone-100 rounded-[1.5rem] outline-none font-medium text-stone-600 focus:bg-white transition-all h-[180px] resize-none leading-relaxed" />
+                   </div>
+                   <div className="space-y-2">
+                      <label className="text-[10px] font-black text-red-400 uppercase tracking-widest px-2 block flex items-center gap-2"><ShieldAlert size={12} /> 預判戰術風險 (Risk)</label>
+                      <textarea value={riskHint} onChange={e => setRiskHint(e.target.value)} placeholder="輸入此任務可能的潛在瓶頸、困難點或風險預警..." className="w-full p-5 bg-red-50/20 border border-red-100 rounded-[1.5rem] outline-none font-medium text-red-800/70 focus:bg-white transition-all h-[180px] resize-none leading-relaxed italic" />
+                   </div>
+                </div>
+
+                <div className="space-y-2">
+                   <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest px-2 block">戰術附件資產</label>
+                   <div className="w-full p-8 border-2 border-dashed border-stone-100 rounded-[2rem] flex flex-col items-center justify-center group hover:border-orange-500 hover:bg-orange-50/20 transition-all cursor-pointer shadow-inner">
+                      <Upload size={24} className="text-stone-300 group-hover:text-orange-500 mb-2 transition-transform group-hover:scale-110" />
+                      <p className="text-xs font-bold text-stone-500 group-hover:text-orange-600">點擊上傳戰略影像或文件</p>
+                   </div>
+                </div>
+              </div>
               
-              <div>
-                <label className="block text-sm font-medium text-stone-600 mb-1">標題</label>
-                <input 
-                  value={title} onChange={e => setTitle(e.target.value)}
-                  className="w-full p-3 rounded-xl border border-stone-300 focus:ring-2 focus:ring-amber-500 outline-none bg-stone-50"
-                  placeholder="例如：週報整理"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-stone-600 mb-1">描述</label>
-                <textarea 
-                  value={description} onChange={e => setDescription(e.target.value)}
-                  className="w-full p-3 rounded-xl border border-stone-300 focus:ring-2 focus:ring-amber-500 outline-none bg-stone-50 min-h-[100px]"
-                  placeholder={mode === 'project' ? "請描述專案目標與交付項目..." : "詳細內容..."}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-stone-600 mb-1">目標分類</label>
-                  <select 
-                    value={goal} onChange={e => setGoal(e.target.value as GoalCategory)}
-                    className="w-full p-3 rounded-xl border border-stone-300 bg-white"
-                  >
+              <div className="grid grid-cols-2 gap-6 pt-6 border-t border-stone-50">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest px-2 block">目標戰略分類</label>
+                  <select value={goal} onChange={e => setGoal(e.target.value as any)} className="w-full p-4 bg-stone-50 border border-stone-100 rounded-2xl font-bold text-stone-700 outline-none cursor-pointer">
                     {INITIAL_GOALS.map(g => <option key={g} value={g}>{g}</option>)}
                   </select>
                 </div>
-
-                {mode !== 'project' && (
-                  <div>
-                    <label className="block text-sm font-medium text-stone-600 mb-1">
-                      預期時間 ({mode === 'misc' ? '分' : mode === 'daily' ? '小時' : '天'})
-                    </label>
-                    <select 
-                      value={timeValue} onChange={e => setTimeValue(Number(e.target.value))}
-                      className="w-full p-3 rounded-xl border border-stone-300 bg-white"
-                    >
-                      {mode === 'misc' && [5,10,15,30,45,60].map(v => <option key={v} value={v}>{v} 分</option>)}
-                      {mode === 'daily' && [0.5,1,2,4,6,8].map(v => <option key={v} value={v}>{v} 時</option>)}
-                      {mode === 'long' && [1,2,3,5,7].map(v => <option key={v} value={v}>{v} 天</option>)}
-                    </select>
-                  </div>
-                )}
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest px-2 block">歸屬專案群組</label>
+                  <select value={selectedProjectId || ''} onChange={e => setSelectedProjectId(e.target.value || null)} className="w-full p-4 bg-stone-50 border border-stone-100 rounded-2xl font-bold text-stone-700 outline-none cursor-pointer">
+                    <option value="">-- 無分類 --</option>
+                    {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+                  </select>
+                </div>
               </div>
 
-              {/* Enhanced Attachments Section */}
               {mode !== 'project' && (
-                <div className="border border-stone-200 rounded-xl p-4 bg-white">
-                  <label className="block text-sm font-bold text-stone-600 mb-2">附件 (圖片/檔案/連結)</label>
-                  
-                  {/* Link Input */}
-                  <div className="flex gap-2 mb-3">
-                     <input 
-                       value={pastedLink}
-                       onChange={e => setPastedLink(e.target.value)}
-                       placeholder="貼上 YouTube 連結 或 雲端網址..."
-                       className="flex-1 p-2 rounded-lg border border-stone-200 text-sm"
-                     />
-                     <button onClick={handleAddLink} className="bg-stone-100 px-3 rounded-lg text-sm font-bold text-stone-600 hover:bg-stone-200">
-                       加入
-                     </button>
-                  </div>
-                  
-                  {/* File Upload Zone */}
-                  <div 
-                    className="border-2 border-dashed border-stone-200 rounded-xl p-4 text-center cursor-pointer hover:bg-stone-50 mb-3"
-                    onClick={() => fileInputRef.current?.click()}
-                  >
-                     <input ref={fileInputRef} type="file" className="hidden" onChange={handleFileUpload} />
-                     <p className="text-xs text-stone-400">點擊上傳 或 直接貼上截圖 (Ctrl+V)</p>
-                  </div>
-
-                  {/* Preview List */}
-                  <div className="flex flex-wrap gap-2">
-                     {attachments.map(att => (
-                       <div key={att.id} className="bg-stone-100 rounded-lg p-2 flex items-center gap-2 max-w-[200px]">
-                          {att.type === 'youtube' ? <Youtube size={14} className="text-red-500"/> : 
-                           att.type === 'image' ? <ImageIcon size={14} className="text-blue-500"/> :
-                           <LinkIcon size={14} className="text-stone-500"/>
-                          }
-                          <span className="text-xs truncate">{att.name}</span>
-                          <button onClick={() => setAttachments(attachments.filter(a => a.id !== att.id))} className="text-stone-400 hover:text-red-500">
-                            <X size={12} />
-                          </button>
-                       </div>
-                     ))}
-                  </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest px-2 block">投入預算 ({mode === 'misc' ? '分鐘' : mode === 'daily' ? '小時' : '天數'})</label>
+                  <input type="number" value={timeValue} onChange={e => setTimeValue(Number(e.target.value))} className="w-full p-4 bg-stone-50 border border-stone-100 rounded-2xl font-black text-stone-800 text-lg" />
                 </div>
               )}
             </div>
           )}
 
-          {/* STEP 4: AI REVIEW (Project Only) */}
-          {step === 4 && mode === 'project' && (
-             <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-xl font-bold text-stone-800">AI 任務拆解</h3>
-                    <p className="text-xs text-stone-500">可多選進行合併，或單選進行拆分</p>
+          {step === 4 && (
+            <div className="space-y-8 animate-in fade-in slide-in-from-right-4">
+               <div className="flex items-center justify-between px-1">
+                  <div className="flex items-center gap-3">
+                    <ListChecks size={22} className="text-orange-500" />
+                    <h3 className="text-lg font-black text-stone-800">AI 戰略拆解預覽</h3>
                   </div>
-                  
-                  {/* Operation Toolbar */}
-                  <div className="flex gap-2">
-                    {selectedDraftIndices.length >= 2 && (
-                      <button 
-                        onClick={handleMergeDrafts}
-                        className="flex items-center gap-1 bg-amber-100 text-amber-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-amber-200 transition-colors"
-                      >
-                        <Merge size={14} /> 合併 ({selectedDraftIndices.length})
-                      </button>
-                    )}
-                    {selectedDraftIndices.length === 1 && (
-                      <button 
-                        onClick={handleSplitDraft}
-                        className="flex items-center gap-1 bg-blue-100 text-blue-700 px-3 py-1.5 rounded-lg text-xs font-bold hover:bg-blue-200 transition-colors"
-                      >
-                        <Scissors size={14} /> 拆分
-                      </button>
-                    )}
-                  </div>
-                </div>
-                
-                <div className="space-y-3 max-h-[400px] overflow-y-auto pr-2">
-                  {aiDrafts.map((draft, idx) => {
-                    const isSelected = selectedDraftIndices.includes(idx);
-                    return (
-                      <div 
-                        key={idx} 
-                        onClick={() => toggleDraftSelection(idx)}
-                        className={`p-3 rounded-xl border shadow-sm flex items-start gap-3 cursor-pointer transition-all ${
-                          isSelected 
-                            ? 'bg-amber-50 border-amber-300 ring-1 ring-amber-300' 
-                            : 'bg-white border-stone-200 hover:border-amber-200'
-                        }`}
-                      >
-                        <div className={`mt-1 text-stone-400 ${isSelected ? 'text-amber-500' : ''}`}>
-                          {isSelected ? <CheckSquare size={18} /> : <Square size={18} />}
-                        </div>
-                        
-                        <div className="flex-1 min-w-0">
-                          <div className="flex justify-between items-start">
-                            <h4 className={`font-semibold truncate ${isSelected ? 'text-amber-900' : 'text-stone-700'}`}>{draft.title}</h4>
-                            <span className="text-xs uppercase tracking-wider font-medium text-stone-400 ml-2">{draft.suggestedType}</span>
+                  <span className="text-[10px] font-black bg-stone-900 text-amber-400 px-4 py-1.5 rounded-full uppercase tracking-widest">
+                    共計 {aiDrafts.length} 項單元
+                  </span>
+               </div>
+               
+               <div className="space-y-4">
+                  {aiDrafts.map((draft, idx) => (
+                    <div key={idx} className="p-6 bg-stone-50/50 border border-stone-100 rounded-[2rem] flex flex-col gap-3 group hover:bg-white hover:border-orange-200 transition-all hover:shadow-lg">
+                       <div className="flex justify-between items-start">
+                          <input className="font-black text-stone-800 bg-transparent outline-none flex-1 truncate text-lg" value={draft.title} onChange={(e) => { const next = [...aiDrafts]; next[idx].title = e.target.value; setAiDrafts(next); }} />
+                          <div className="flex items-center gap-3 shrink-0 ml-4">
+                            <span className="px-3 py-1 bg-white border border-stone-100 text-[10px] font-black rounded-lg uppercase text-stone-400">{draft.suggestedGoal}</span>
+                            <span className="text-xs font-mono font-black text-stone-900 bg-white px-2 py-1 rounded shadow-sm">{draft.suggestedValue}{draft.suggestedType === 'misc' ? 'm' : draft.suggestedType === 'daily' ? 'h' : 'd'}</span>
                           </div>
-                          <p className="text-xs text-stone-500 mb-1 line-clamp-2">{draft.description}</p>
-                          <div className="flex gap-2 text-xs">
-                             <span className="bg-stone-100 px-2 py-0.5 rounded text-stone-600">
-                               {draft.suggestedValue} {draft.suggestedType === 'misc' ? '分' : draft.suggestedType === 'daily' ? '時' : '天'}
-                             </span>
-                             <span className="bg-blue-50 text-blue-600 px-2 py-0.5 rounded">
-                               {draft.suggestedGoal}
-                             </span>
-                          </div>
-                        </div>
-                        
-                        <button 
-                          onClick={(e) => { e.stopPropagation(); handleDeleteDraft(idx); }}
-                          className="p-1 text-stone-300 hover:text-red-500 hover:bg-stone-100 rounded"
-                        >
-                          <X size={16} />
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-             </div>
+                       </div>
+                       <textarea className="text-xs text-stone-500 bg-transparent outline-none resize-none h-12 leading-relaxed" value={draft.description} onChange={(e) => { const next = [...aiDrafts]; next[idx].description = e.target.value; setAiDrafts(next); }} />
+                    </div>
+                  ))}
+               </div>
+            </div>
           )}
-
         </div>
 
-        {/* Footer */}
-        <div className="bg-stone-100 p-4 flex justify-between items-center border-t border-stone-200">
-           {step > 1 && (
-             <button onClick={() => setStep(step - 1)} className="flex items-center text-stone-500 hover:text-stone-800">
-               <ArrowLeft size={16} className="mr-1" /> 返回
-             </button>
-           )}
-           <div className="flex-1"></div>
+        <div className="px-10 py-8 border-t border-stone-50 bg-stone-50/30 flex gap-6 shrink-0">
+           <button onClick={onClose} className="flex-1 py-5 text-sm font-black text-stone-400 hover:text-stone-900 transition-colors uppercase tracking-[0.2em]">Cancel</button>
            <button 
-             onClick={mode === 'project' && step === 4 ? handleSubmitProject : handleNext}
-             disabled={loading || (step===3 && !title && mode !== 'project')}
-             className="bg-stone-800 text-stone-50 px-6 py-3 rounded-xl font-medium hover:bg-stone-700 flex items-center disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-stone-300"
+             onClick={step === 4 ? handleSubmitBatch : (step === 3 && mode !== 'project' ? handleSubmitSingle : handleNext)} 
+             disabled={loading} 
+             className="flex-[2] bg-stone-900 text-white py-5 rounded-[1.5rem] font-black text-sm tracking-[0.2em] shadow-2xl hover:bg-orange-600 transition-all flex items-center justify-center gap-3 disabled:opacity-50 active:scale-95"
            >
-             {loading && <Loader2 className="animate-spin mr-2" size={18} />}
-             {step === 4 || (step === 3 && mode !== 'project') ? '建立任務' : '下一步'}
-             {!loading && step < 3 && <ArrowRight size={18} className="ml-2" />}
+             {loading ? <Loader2 size={20} className="animate-spin" /> : (step >= 3 ? <Check size={20} /> : <ArrowRight size={20} />)}
+             {step === 4 ? "確認並部署案子單元" : (step === 3 && mode !== 'project' ? "啟動戰略任務" : (step === 3 ? "分析並拆解細項" : "下一步 NEXT"))}
            </button>
         </div>
       </div>

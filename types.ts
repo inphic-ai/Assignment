@@ -14,27 +14,46 @@ export type GoalCategory =
   | '售後' 
   | '行政';
 
-// Announcement Level
 export type AnnouncementLevel = 'info' | 'warning' | 'urgent';
 
-// New Announcement Interface
 export interface Announcement {
   id: string;
+  title?: string;
   content: string;
   level: AnnouncementLevel;
   createdAt: string;
   createdBy: string;
-  isActive: boolean; // Controls visibility
+  expiresAt?: string;
+  targetDepartments?: string[];
+  readBy: string[];
+  isActive: boolean;
 }
 
-// --- NEW TUTORIAL TYPES ---
+export type RequestStatus = 'pending' | 'in-progress' | 'done';
+export type ImpactLevel = 'low' | 'medium' | 'high' | 'critical';
+export type UrgencyLevel = 'low' | 'medium' | 'high';
+
+export interface FeatureRequest {
+  id: string;
+  problem: string;
+  suggestion: string;
+  page: string;
+  impact: ImpactLevel;
+  consequence: string;
+  attachments: Attachment[];
+  urgency: UrgencyLevel;
+  status: RequestStatus;
+  createdAt: string;
+  createdBy: string;
+}
+
 export interface TutorialTip {
   id: string;
-  triggerKey: string; // Unique key to trigger this tip (e.g., 'TIMELINE_PAST_DRAG')
+  triggerKey: string; 
   title: string;
-  content: string; // Can be multi-line text
+  content: string; 
   category: 'timeline' | 'task' | 'project' | 'general';
-  isActive: boolean; // Admin can disable tips
+  isActive: boolean; 
 }
 
 export interface Attachment {
@@ -51,32 +70,26 @@ export interface TaskSubmission {
   summary: string;
   submittedAt: string;
   submittedBy: string;
-  
-  // New fields for review
-  rating?: number; // 1-5 stars
-  problemSolved?: string; // What specific problem was solved? (For Knowledge Base)
+  rating?: number;
+  problemSolved?: string;
+  overrunReason?: string; // 新增：超時原因記錄
   reviewedBy?: string;
   reviewedAt?: string;
 }
 
-// Execution Status for Timeline Slots
-export type AllocationStatus = 'planned' | 'running' | 'done' | 'missed' | 'overrun';
+export type AllocationStatus = 'planned' | 'running' | 'paused' | 'done' | 'missed' | 'overrun';
 
-// Updated Interface for Time Slicing
 export interface TaskAllocation {
   id: string;
   taskId: string;
-  userId: string; // To track who this allocation belongs to
-  date: string; // ISO Date (YYYY-MM-DD)
-  
-  // Plan
-  startTime: string; // "09:00"
+  userId: string;
+  date: string;
+  startTime: string;
   durationMinutes: number;
-  
-  // Actual Execution
   status: AllocationStatus;
-  actualStartAt?: string; // ISO Timestamp
-  actualEndAt?: string;   // ISO Timestamp
+  accumulatedSeconds: number;
+  actualStartAt?: string;
+  actualEndAt?: string;
 }
 
 export interface Task {
@@ -89,67 +102,58 @@ export interface Task {
   role: RoleType; 
   projectId: string | null;
   status: TaskStatus;
-  
+  priority?: 'low' | 'medium' | 'high';
   startAt: string;
   dueAt: string;
-  scheduledSlot?: string; // Legacy for Misc/Daily simple scheduling
-
+  scheduledSlot?: string;
   orderDaily: number;
   orderInProject: number;
-  
   creatorId: string;
   assigneeId: string;
+  collaboratorIds: string[]; 
   watchers: string[];
-  
   requireProof: boolean;
   attachments: Attachment[];
   submission?: TaskSubmission;
-  
+  rejectionReason?: string;
+  pendingInfoRequest?: string;
   linkedKnowledgeId?: string;
-
-  // Link back to routine template if generated
   fromRoutineId?: string; 
-
-  // New field for accumulated time tracking
-  totalSpent?: number; // in minutes
-
+  totalSpent?: number;
+  activeViewers?: string[]; 
+  aiTacticalTags?: string[];
+  aiRiskHint?: string;
+  aiFromHistory?: boolean;
+  isConfirmed?: boolean; 
+  remarks?: string;     
   createdAt: string;
   updatedAt: string;
-  
-  // Soft Delete
   deletedAt?: string;
   deletedBy?: string;
 }
 
-// --- NEW ROUTINE TYPES ---
 export type RecurrenceType = 'daily' | 'workday' | 'weekly' | 'monthly';
-export type RoutineStrategy = 'static' | 'rotating'; // Static = All assignees get it; Rotating = One per cycle
-export type RoutineStatus = 'active' | 'frozen' | 'draft';
+export type RoutineStrategy = 'static' | 'rotating';
+export type RoutineStatus = 'active' | 'frozen' | 'draft' | 'completed';
 
 export interface RoutineTemplate {
   id: string;
   title: string;
   description: string;
+  aiRiskHint?: string; 
   goal: GoalCategory;
-  timeType: TimeType; // Usually misc or daily
+  timeType: TimeType;
   timeValue: number;
-  
   recurrence: RecurrenceType;
-  recurrenceDay?: number; // For weekly (0-6) or monthly (1-31)
-  
-  // Advanced Assignment Logic
+  recurrenceDay?: number;
   strategy: RoutineStrategy; 
-  assigneeIds: string[]; // List of involved users. If 'static', all get it. If 'rotating', take turns.
-  currentRotationIndex: number; // For rotating strategy: who is next?
-  
-  // Date Range Control
-  validFrom: string; // ISO Date String (YYYY-MM-DD)
-  validTo?: string;   // ISO Date String (Optional)
-
+  assigneeIds: string[];
+  currentRotationIndex: number;
+  validFrom: string;
+  validTo?: string;
   creatorId: string;
-  
-  status: RoutineStatus; // Replaces isActive boolean
-  lastGeneratedDate?: string; // YYYY-MM-DD to prevent duplicate generation
+  status: RoutineStatus;
+  lastGeneratedDate?: string;
 }
 
 export interface Project {
@@ -173,26 +177,37 @@ export interface LoginLogEntry {
 
 export interface LogEntry {
   id: string;
-  action: 'CREATE' | 'READ' | 'UPDATE' | 'DELETE' | 'SUBMIT' | 'APPROVE' | 'REJECT' | 'RESTORE';
+  action: 'CREATE' | 'READ' | 'UPDATE' | 'DELETE' | 'SUBMIT' | 'APPROVE' | 'REJECT' | 'RESTORE' | 'INFO_REQUEST';
   target: 'TASK' | 'PROJECT' | 'GOAL' | 'USER' | 'KNOWLEDGE' | 'ALLOCATION' | 'ANNOUNCEMENT' | 'ROUTINE' | 'TUTORIAL';
   details: string;
   timestamp: string;
   userId: string;
+  ipAddress?: string; 
 }
 
 export interface User {
   id: string;
   name: string;
-  role: 'admin' | 'manager' | 'user'; // Added 'manager'
+  email?: string; 
+  role: 'admin' | 'manager' | 'user';
   avatar?: string;
   department?: string;
-  active: boolean; // For soft delete/deactivation
-  
-  // Workday Settings
-  workdayStart: string; // "09:00"
-  workdayEnd: string;   // "18:00"
-  dailyHours: number;   // 9 (including lunch) or 8
-  defaultLongTaskConversion: number; // 8 hours = 1 day
+  active: boolean;
+  workdayStart: string;
+  workdayEnd: string;
+  dailyHours: number;
+  defaultLongTaskConversion: number;
+}
+
+export interface TaskTemplate {
+  id: string;
+  title: string;
+  description: string;
+  goal: GoalCategory;
+  timeType: TimeType;
+  timeValue: number;
+  source: 'system' | 'user';
+  useCount: number;
 }
 
 export interface AppState {
@@ -200,13 +215,27 @@ export interface AppState {
   projects: Project[];
   goals: GoalCategory[];
   logs: LogEntry[];
-  loginLogs: LoginLogEntry[]; // New Login Logs
+  loginLogs: LoginLogEntry[];
   users: User[];
   currentUser: User;
-  allocations: TaskAllocation[]; // Store time slices
-  announcements: Announcement[]; // Replaces single string systemAnnouncement
-  routineTemplates: RoutineTemplate[]; // NEW
-  tutorials: TutorialTip[]; // NEW: For instructional prompts
+  allocations: TaskAllocation[];
+  announcements: Announcement[];
+  routineTemplates: RoutineTemplate[];
+  tutorials: TutorialTip[]; 
+  featureRequests: FeatureRequest[];
+  taskTemplates: TaskTemplate[];
 }
 
-export type NavTab = 'dashboard' | 'create' | 'daily' | 'projects' | 'timeline' | 'routines' | 'knowledge' | 'announcement' | 'admin';
+export type NavTab = 
+  | 'dashboard' 
+  | 'personal_dashboard' 
+  | 'create' 
+  | 'daily' 
+  | 'task_list' 
+  | 'projects' 
+  | 'timeline' 
+  | 'routines' 
+  | 'knowledge' 
+  | 'announcement' 
+  | 'admin'
+  | 'feature_request';

@@ -1,7 +1,6 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 import { TimeType, GoalCategory } from "../types";
-
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || '' });
 
 // Define the schema for the breakdown response
 const breakdownSchema = {
@@ -13,9 +12,9 @@ const breakdownSchema = {
       description: { type: Type.STRING },
       suggestedType: { type: Type.STRING, enum: ['misc', 'daily', 'long'] },
       suggestedValue: { type: Type.NUMBER },
-      suggestedGoal: { type: Type.STRING },
+      suggestedGoal: { type: Type.STRING, enum: ['業務', '人資', '管理', '倉儲', '維修', '行銷', '售後', '行政'] },
     },
-    required: ['title', 'suggestedType', 'suggestedValue'],
+    required: ['title', 'description', 'suggestedType', 'suggestedValue', 'suggestedGoal'],
   },
 };
 
@@ -32,7 +31,6 @@ export const breakdownProjectTask = async (
 ): Promise<BreakdownResult[]> => {
   if (!process.env.API_KEY) {
     console.warn("API Key not found. Returning mock data.");
-    // Mock fallback for demo if key is missing
     return [
       { title: "需求分析", description: "檢視相關文件", suggestedType: "misc", suggestedValue: 30, suggestedGoal: "行政" },
       { title: "草擬提案", description: "建立初步草案", suggestedType: "daily", suggestedValue: 4, suggestedGoal: "管理" },
@@ -41,6 +39,8 @@ export const breakdownProjectTask = async (
   }
 
   try {
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    
     const response = await ai.models.generateContent({
       model: "gemini-3-flash-preview",
       contents: `Break down the following project description into smaller, actionable tasks in Traditional Chinese (繁體中文).
