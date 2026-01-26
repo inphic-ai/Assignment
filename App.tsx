@@ -55,9 +55,15 @@ const App = () => {
 
   useEffect(() => {
     const fetchData = async () => {
-      const state = await api.loadAppState();
-      if (state.tasks) {
-        setData(prev => ({ ...prev, ...state }));
+      try {
+        const projects = await api.getProjects();
+        // 暫時保留 Mock 資料，因為後端還沒有任務端點
+        setData(prev => ({
+          ...prev,
+          projects: projects.length > 0 ? projects : prev.projects
+        }));
+      } catch (error) {
+        console.error('Failed to fetch data:', error);
       }
     };
     fetchData();
