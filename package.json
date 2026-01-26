@@ -9,12 +9,12 @@
     "build": "vite build",
     "preview": "vite preview",
     "start": "node dist/api/server.js",
+    "start:prod": "prisma db push --accept-data-loss && ts-node --esm prisma/seed.ts && node dist/api/server.js",
     "seed": "ts-node --esm prisma/seed.ts",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate deploy",
     "db:push": "prisma db push",
     "db:init": "prisma db push --accept-data-loss && ts-node --esm prisma/seed.ts",
-    "deploy": "prisma db push --accept-data-loss && ts-node --esm prisma/seed.ts && node dist/api/server.js",
     "postinstall": "prisma generate"
   },
   "dependencies": {

@@ -16,4 +16,4 @@ cmds = [
 ]
 
 [start]
-cmd = "pnpm deploy"
+cmd = "pnpm start:prod"
