@@ -43,7 +43,7 @@ app.use('/api/tasks', taskRouter);
 app.use('/api/ai', aiRouter);
 
 // 靜態檔案服務 (Vite 編譯後的前端)
-const distPath = path.join(__dirname, '..', 'dist');
+const distPath = path.join(__dirname, '..', '..', 'dist');
 app.use(express.static(distPath));
 
 // SPA 路由回退 - Express 5 使用 {*path} 語法
