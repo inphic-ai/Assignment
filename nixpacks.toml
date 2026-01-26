@@ -1,5 +1,10 @@
+# Nixpacks 配置 - Node.js 後端應用
+# 此專案是全端應用，後端使用 Express，前端使用 Vite
+
 [phases.setup]
 nixPkgs = ["nodejs_20", "pnpm"]
+# 明確排除 Caddy，因為我們使用 Express 作為伺服器
+aptPkgs = []
 
 [phases.install]
 cmds = ["pnpm install"]
@@ -12,4 +17,4 @@ cmds = [
 ]
 
 [start]
-cmd = "pnpm db:migrate && node dist/api/server.js"
+cmd = "node dist/api/server.js"
