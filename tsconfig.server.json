@@ -11,6 +11,6 @@
     "resolveJsonModule": true,
     "declaration": false
   },
-  "include": ["api/**/*.ts", "services/db.ts"],
+  "include": ["api/**/*.ts", "services/db.ts", "prisma/seed.ts"],
   "exclude": ["node_modules"]
 }
