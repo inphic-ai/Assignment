@@ -3,17 +3,22 @@ import express from 'express';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
 // 載入環境變數
 dotenv.config();
 
 // 導入路由
-import projectRouter from './project';
-import taskRouter from './task';
-import aiRouter from './ai';
+import projectRouter from './project.js';
+import taskRouter from './task.js';
+import aiRouter from './ai.js';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+// ES Module 中獲取 __dirname
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // 中間件
 app.use(cors({
@@ -38,12 +43,11 @@ app.use('/api/tasks', taskRouter);
 app.use('/api/ai', aiRouter);
 
 // 靜態檔案服務 (Vite 編譯後的前端)
-// 使用 process.cwd() 獲取工作目錄
-const distPath = path.join(process.cwd(), 'dist');
+const distPath = path.join(__dirname, '..', 'dist');
 app.use(express.static(distPath));
 
-// SPA 路由回退 (所有非 API 路由都返回 index.html)
-app.get('*', (req, res) => {
+// SPA 路由回退 - Express 5 使用 {*path} 語法
+app.get('{*path}', (req, res) => {
   // 如果是 API 路由但未匹配，返回 404
   if (req.path.startsWith('/api/')) {
     return res.status(404).json({ error: 'API endpoint not found' });

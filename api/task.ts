@@ -1,6 +1,6 @@
 // api/task.ts
 import { Router } from 'express';
-import { prisma } from '../services/db';
+import { prisma } from '../services/db.js';
 
 const router = Router();
 

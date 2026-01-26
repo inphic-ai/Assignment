@@ -1,13 +1,12 @@
 // api/project.ts
 import { Router } from 'express';
-import { prisma } from '../services/db';
+import { prisma } from '../services/db.js';
 
 const router = Router();
 
 // 獲取所有專案
 router.get('/', async (req, res) => {
   try {
-    // 這裡應該加入使用者身份驗證，但目前先跳過
     const projects = await prisma.project.findMany({
       include: {
         tasks: true,

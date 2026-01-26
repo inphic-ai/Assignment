@@ -3,7 +3,6 @@
 
 [phases.setup]
 nixPkgs = ["nodejs_20", "pnpm"]
-# 明確排除 Caddy，因為我們使用 Express 作為伺服器
 aptPkgs = []
 
 [phases.install]
@@ -13,7 +12,7 @@ cmds = ["pnpm install"]
 cmds = [
   "pnpm db:generate",
   "pnpm build",
-  "npx tsc api/server.ts api/project.ts api/task.ts api/ai.ts services/db.ts --outDir dist --esModuleInterop --module commonjs --target ES2020 --skipLibCheck"
+  "npx tsc -p tsconfig.server.json"
 ]
 
 [start]
