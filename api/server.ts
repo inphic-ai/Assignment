@@ -46,11 +46,14 @@ app.use('/api/ai', aiRouter);
 app.use(express.static(distPath));
 
 // 3. SPA 路由回退 (處理前端路由)
-// 確保不攔截 API 請求
-app.get('*', (req, res, next) => {
-  if (req.path.startsWith('/api/')) {
+// 使用 app.use 而非 app.get('*') 以兼容 Express 5
+app.use((req, res, next) => {
+  // 如果請求路徑是 API，跳過
+  if (req.path.startsWith('/api')) {
     return next();
   }
+  // 如果請求的檔案存在於 dist，由 express.static 處理
+  // 否則返回 index.html (SPA 路由)
   res.sendFile(path.join(distPath, 'index.html'));
 });
 
