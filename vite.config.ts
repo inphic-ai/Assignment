@@ -9,6 +9,11 @@ export default defineConfig(({ mode }) => {
         port: 5173,
         host: '0.0.0.0',
       },
+      preview: {
+        port: 4173,
+        host: '0.0.0.0',
+        allowedHosts: true,
+      },
       plugins: [react()],
       define: {
         // 只定義公開的環境變數，不包含 API Key
@@ -17,6 +22,20 @@ export default defineConfig(({ mode }) => {
       resolve: {
         alias: {
           '@': path.resolve(__dirname, '.'),
+        }
+      },
+      build: {
+        rollupOptions: {
+          output: {
+            manualChunks: {
+              // 將 React 相關套件分離
+              'vendor-react': ['react', 'react-dom'],
+              // 將圖表庫分離（較大的依賴）
+              'vendor-recharts': ['recharts'],
+              // 將圖標庫分離
+              'vendor-icons': ['lucide-react'],
+            }
+          }
         }
       }
     };

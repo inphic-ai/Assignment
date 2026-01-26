@@ -1,22 +1,26 @@
-
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, Suspense, lazy } from 'react';
 import Layout from './components/Layout';
-import Dashboard from './components/Dashboard';
-import TaskViews from './components/TaskViews';
-import CreateTaskModal from './components/CreateTaskModal';
-import CreateProjectModal from './components/CreateProjectModal'; 
-import TaskDetailModal from './components/TaskDetailModal'; 
-import AdminCenter from './components/AdminCenter';
-import TimelineView from './components/TimelineView';
-import KnowledgeBase from './components/KnowledgeBase';
-import RoutineManager from './components/RoutineManager'; 
-import PersonalDashboard from './components/PersonalDashboard';
-import TaskListView from './components/TaskListView';
-import AnnouncementView from './components/AnnouncementView';
-import FeatureRequestView from './components/FeatureRequestView';
+import LoadingSpinner from './components/LoadingSpinner';
 import { NavTab, Task, Project, AppState, TaskAllocation, RoutineStatus, RoutineTemplate, TaskTemplate, FeatureRequest, TimeType, User, GoalCategory, Announcement } from './types';
 import { INITIAL_GOALS, INITIAL_TUTORIALS, generateId } from './constants';
 import { api } from './services/api';
+
+// 路由級懶加載 - 主要頁面組件
+const Dashboard = lazy(() => import('./components/Dashboard'));
+const TaskViews = lazy(() => import('./components/TaskViews'));
+const PersonalDashboard = lazy(() => import('./components/PersonalDashboard'));
+const TimelineView = lazy(() => import('./components/TimelineView'));
+const TaskListView = lazy(() => import('./components/TaskListView'));
+const AdminCenter = lazy(() => import('./components/AdminCenter'));
+const KnowledgeBase = lazy(() => import('./components/KnowledgeBase'));
+const RoutineManager = lazy(() => import('./components/RoutineManager'));
+const AnnouncementView = lazy(() => import('./components/AnnouncementView'));
+const FeatureRequestView = lazy(() => import('./components/FeatureRequestView'));
+
+// Modal 組件也懶加載（用戶不一定會打開）
+const CreateTaskModal = lazy(() => import('./components/CreateTaskModal'));
+const CreateProjectModal = lazy(() => import('./components/CreateProjectModal'));
+const TaskDetailModal = lazy(() => import('./components/TaskDetailModal'));
 
 const MOCK_USERS: User[] = [
   { id: 'u1', name: 'Alex Chen', role: 'admin', department: '研發部', active: true, workdayStart: '09:00', workdayEnd: '18:00', dailyHours: 9, defaultLongTaskConversion: 8 },
@@ -207,6 +211,184 @@ const App = () => {
     return data.announcements.find(a => a.isActive);
   }, [data.announcements]);
 
+  // 渲染當前頁面內容
+  const renderCurrentPage = () => {
+    switch (currentTab) {
+      case 'dashboard':
+        return (
+          <Dashboard 
+            tasks={data.tasks} 
+            projects={data.projects} 
+            users={data.users} 
+            currentUser={data.currentUser}
+            viewingUserId={viewingUserId}
+            allocations={data.allocations}
+            onSwitchUser={setViewingUserId}
+            onNavigateToTasks={() => setCurrentTab('task_list')}
+            onOpenCreate={() => setShowCreateModal(true)}
+          />
+        );
+
+      case 'projects':
+        return (
+          <TaskViews 
+            mode="project"
+            tasks={data.tasks}
+            projects={data.projects}
+            users={data.users}
+            viewMode="card"
+            onUpdateTask={handleUpdateTask}
+            onSelectProject={setSelectedProjectId}
+            onDeleteProject={handleDeleteProject}
+            selectedProjectId={selectedProjectId}
+            onSelectTask={setSelectedTask}
+            onOpenCreateProject={() => setShowCreateProjectModal(true)}
+          />
+        );
+
+      case 'daily':
+        return (
+          <TaskViews 
+            mode="daily"
+            tasks={data.tasks}
+            projects={data.projects}
+            users={data.users}
+            viewMode="card"
+            onUpdateTask={handleUpdateTask}
+            onSelectProject={setSelectedProjectId}
+            selectedProjectId={selectedProjectId}
+            onSelectTask={setSelectedTask}
+          />
+        );
+
+      case 'personal_dashboard':
+        return (
+          <PersonalDashboard 
+            tasks={data.tasks} 
+            allocations={data.allocations} 
+            users={data.users} 
+            currentUser={data.currentUser}
+            viewingUserId={viewingUserId}
+            onSwitchUser={setViewingUserId}
+            onSelectTask={setSelectedTask}
+          />
+        );
+
+      case 'timeline':
+        return (
+          <TimelineView 
+            tasks={data.tasks} 
+            routineTemplates={data.routineTemplates}
+            allocations={data.allocations}
+            currentUser={data.currentUser}
+            users={data.users}
+            viewingUserId={viewingUserId}
+            onUpdateTask={handleUpdateTask}
+            onUpdateAllocation={handleUpdateAllocation}
+            onAddAllocation={handleAddAllocation}
+            onInstantiateRoutine={instantiateRoutine}
+            onUpdateRoutineTemplate={handleUpdateRoutineTemplate}
+            onRemoveAllocation={handleRemoveAllocation}
+            onSwitchUser={setViewingUserId}
+            onSelectTask={setSelectedTask}
+            taskTemplates={data.taskTemplates}
+            onSaveTemplate={(task) => {
+              const template: TaskTemplate = {
+                id: generateId('TPL'),
+                title: task.title,
+                description: task.description,
+                goal: task.goal,
+                timeType: task.timeType,
+                timeValue: task.timeValue,
+                source: 'user',
+                useCount: 1
+              };
+              setData(prev => ({ ...prev, taskTemplates: [...prev.taskTemplates, template] }));
+            }}
+          />
+        );
+
+      case 'task_list':
+        return (
+          <TaskListView 
+            tasks={data.tasks} 
+            users={data.users} 
+            onSelectTask={setSelectedTask} 
+          />
+        );
+
+      case 'admin':
+        return <AdminCenter data={data} />;
+
+      case 'knowledge':
+        return (
+          <KnowledgeBase 
+            tasks={data.tasks} 
+            users={data.users} 
+            onSelectTask={setSelectedTask} 
+          />
+        );
+
+      case 'routines':
+        return (
+          <RoutineManager 
+            currentUser={data.currentUser} 
+            users={data.users} 
+            templates={data.routineTemplates} 
+            onInstantiate={instantiateRoutine} 
+            onSaveTemplate={(t) => setData(prev => ({ 
+              ...prev, 
+              routineTemplates: prev.routineTemplates.some(old => old.id === t.id) 
+                ? prev.routineTemplates.map(old => old.id === t.id ? t : old) 
+                : [...prev.routineTemplates, t] 
+            }))}
+            onDeleteTemplate={(id) => setData(prev => ({ ...prev, routineTemplates: prev.routineTemplates.filter(t => t.id !== id) }))}
+            onToggleTemplate={(id, status) => handleUpdateRoutineTemplate(id, { status })}
+          />
+        );
+
+      case 'announcement':
+        return (
+          <AnnouncementView 
+            announcements={data.announcements} 
+            currentUser={data.currentUser} 
+            onCreate={(ann) => {
+              const newAnn: Announcement = {
+                ...ann,
+                id: generateId('ANN'),
+                createdAt: new Date().toISOString(),
+                createdBy: data.currentUser.id,
+                readBy: [],
+                isActive: true
+              } as Announcement;
+              setData(prev => ({ ...prev, announcements: [...prev.announcements, newAnn] }));
+            }}
+          />
+        );
+
+      case 'feature_request':
+        return (
+          <FeatureRequestView 
+            data={data} 
+            onCreateRequest={(req) => {
+              const newReq: FeatureRequest = {
+                ...req,
+                id: generateId('REQ'),
+                createdAt: new Date().toISOString(),
+                createdBy: data.currentUser.id,
+                status: 'pending',
+                attachments: []
+              } as FeatureRequest;
+              setData(prev => ({ ...prev, featureRequests: [...prev.featureRequests, newReq] }));
+            }} 
+          />
+        );
+
+      default:
+        return null;
+    }
+  };
+
   return (
     <Layout 
       currentTab={currentTab} 
@@ -217,199 +399,48 @@ const App = () => {
       onSwitchUser={handleSwitchCurrentUser}
       activeAnnouncement={activeAnnouncement}
     >
-      {currentTab === 'dashboard' && (
-        <Dashboard 
-          tasks={data.tasks} 
-          projects={data.projects} 
-          users={data.users} 
-          currentUser={data.currentUser}
-          viewingUserId={viewingUserId}
-          allocations={data.allocations}
-          onSwitchUser={setViewingUserId}
-          onNavigateToTasks={() => setCurrentTab('task_list')}
-          onOpenCreate={() => setShowCreateModal(true)}
-        />
-      )}
-
-      {currentTab === 'projects' && (
-        <TaskViews 
-          mode="project"
-          tasks={data.tasks}
-          projects={data.projects}
-          users={data.users}
-          viewMode="card"
-          onUpdateTask={handleUpdateTask}
-          onSelectProject={setSelectedProjectId}
-          onDeleteProject={handleDeleteProject}
-          selectedProjectId={selectedProjectId}
-          onSelectTask={setSelectedTask}
-          onOpenCreateProject={() => setShowCreateProjectModal(true)}
-        />
-      )}
-
-      {currentTab === 'daily' && (
-        <TaskViews 
-          mode="daily"
-          tasks={data.tasks}
-          projects={data.projects}
-          users={data.users}
-          viewMode="card"
-          onUpdateTask={handleUpdateTask}
-          onSelectProject={setSelectedProjectId}
-          selectedProjectId={selectedProjectId}
-          onSelectTask={setSelectedTask}
-        />
-      )}
-
-      {currentTab === 'personal_dashboard' && (
-        <PersonalDashboard 
-          tasks={data.tasks} 
-          allocations={data.allocations} 
-          users={data.users} 
-          currentUser={data.currentUser}
-          viewingUserId={viewingUserId}
-          onSwitchUser={setViewingUserId}
-          onSelectTask={setSelectedTask}
-        />
-      )}
-
-      {currentTab === 'timeline' && (
-        <TimelineView 
-          tasks={data.tasks} 
-          routineTemplates={data.routineTemplates}
-          allocations={data.allocations}
-          currentUser={data.currentUser}
-          users={data.users}
-          viewingUserId={viewingUserId}
-          onUpdateTask={handleUpdateTask}
-          onUpdateAllocation={handleUpdateAllocation}
-          onAddAllocation={handleAddAllocation}
-          onInstantiateRoutine={instantiateRoutine}
-          onUpdateRoutineTemplate={handleUpdateRoutineTemplate}
-          onRemoveAllocation={handleRemoveAllocation}
-          onSwitchUser={setViewingUserId}
-          onSelectTask={setSelectedTask}
-          taskTemplates={data.taskTemplates}
-          onSaveTemplate={(task) => {
-            const template: TaskTemplate = {
-              id: generateId('TPL'),
-              title: task.title,
-              description: task.description,
-              goal: task.goal,
-              timeType: task.timeType,
-              timeValue: task.timeValue,
-              source: 'user',
-              useCount: 1
-            };
-            setData(prev => ({ ...prev, taskTemplates: [...prev.taskTemplates, template] }));
-          }}
-        />
-      )}
-
-      {currentTab === 'task_list' && (
-        <TaskListView 
-          tasks={data.tasks} 
-          users={data.users} 
-          onSelectTask={setSelectedTask} 
-        />
-      )}
-
-      {currentTab === 'admin' && (
-        <AdminCenter data={data} />
-      )}
-
-      {currentTab === 'knowledge' && (
-        <KnowledgeBase 
-          tasks={data.tasks} 
-          users={data.users} 
-          onSelectTask={setSelectedTask} 
-        />
-      )}
-
-      {currentTab === 'routines' && (
-        <RoutineManager 
-          currentUser={data.currentUser} 
-          users={data.users} 
-          templates={data.routineTemplates} 
-          onInstantiate={instantiateRoutine} 
-          onSaveTemplate={(t) => setData(prev => ({ 
-            ...prev, 
-            routineTemplates: prev.routineTemplates.some(old => old.id === t.id) 
-              ? prev.routineTemplates.map(old => old.id === t.id ? t : old) 
-              : [...prev.routineTemplates, t] 
-          }))}
-          onDeleteTemplate={(id) => setData(prev => ({ ...prev, routineTemplates: prev.routineTemplates.filter(t => t.id !== id) }))}
-          onToggleTemplate={(id, status) => handleUpdateRoutineTemplate(id, { status })}
-        />
-      )}
-
-      {currentTab === 'announcement' && (
-        <AnnouncementView 
-          announcements={data.announcements} 
-          currentUser={data.currentUser} 
-          onCreate={(ann) => {
-            const newAnn: Announcement = {
-              ...ann,
-              id: generateId('ANN'),
-              createdAt: new Date().toISOString(),
-              createdBy: data.currentUser.id,
-              readBy: [],
-              isActive: true
-            } as Announcement;
-            setData(prev => ({ ...prev, announcements: [...prev.announcements, newAnn] }));
-          }}
-        />
-      )}
-
-      {currentTab === 'feature_request' && (
-        <FeatureRequestView 
-          data={data} 
-          onCreateRequest={(req) => {
-            const newReq: FeatureRequest = {
-              ...req,
-              id: generateId('REQ'),
-              createdAt: new Date().toISOString(),
-              createdBy: data.currentUser.id,
-              status: 'pending',
-              attachments: []
-            } as FeatureRequest;
-            setData(prev => ({ ...prev, featureRequests: [...prev.featureRequests, newReq] }));
-          }} 
-        />
-      )}
+      <Suspense fallback={<LoadingSpinner />}>
+        {renderCurrentPage()}
+      </Suspense>
 
       {showCreateModal && (
-        <CreateTaskModal 
-          users={data.users} 
-          currentUser={data.currentUser} 
-          projects={data.projects}
-          onClose={() => setShowCreateModal(false)} 
-          onCreate={handleCreateTasks} 
-        />
+        <Suspense fallback={null}>
+          <CreateTaskModal 
+            users={data.users} 
+            currentUser={data.currentUser} 
+            projects={data.projects}
+            onClose={() => setShowCreateModal(false)} 
+            onCreate={handleCreateTasks} 
+          />
+        </Suspense>
       )}
 
       {showCreateProjectModal && (
-        <CreateProjectModal 
-          currentUser={data.currentUser}
-          users={data.users}
-          onClose={() => setShowCreateProjectModal(false)}
-          onCreate={handleCreateProjectFull}
-        />
+        <Suspense fallback={null}>
+          <CreateProjectModal 
+            currentUser={data.currentUser}
+            users={data.users}
+            onClose={() => setShowCreateProjectModal(false)}
+            onCreate={handleCreateProjectFull}
+          />
+        </Suspense>
       )}
 
       {selectedTask && (
-        <TaskDetailModal 
-          task={selectedTask} 
-          users={data.users} 
-          currentUser={data.currentUser}
-          logs={data.logs}
-          allocations={data.allocations}
-          onClose={() => setSelectedTask(null)}
-          onUpdate={handleUpdateTask}
-          onConvertToKnowledge={(task) => {}}
-          onDelete={(id) => setData(prev => ({ ...prev, tasks: prev.tasks.filter(t => t.id !== id) }))}
-          onNavigateToTimeline={() => setCurrentTab('timeline')}
-        />
+        <Suspense fallback={null}>
+          <TaskDetailModal 
+            task={selectedTask} 
+            users={data.users} 
+            currentUser={data.currentUser}
+            logs={data.logs}
+            allocations={data.allocations}
+            onClose={() => setSelectedTask(null)}
+            onUpdate={handleUpdateTask}
+            onConvertToKnowledge={(task) => {}}
+            onDelete={(id) => setData(prev => ({ ...prev, tasks: prev.tasks.filter(t => t.id !== id) }))}
+            onNavigateToTimeline={() => setCurrentTab('timeline')}
+          />
+        </Suspense>
       )}
     </Layout>
   );
