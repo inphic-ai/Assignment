@@ -32,9 +32,6 @@ importers:
       express:
         specifier: ^5.2.1
         version: 5.2.1
-      helpers:
-        specifier: link:@prisma/cli/helpers
-        version: link:@prisma/cli/helpers
       lucide-react:
         specifier: ^0.562.0
         version: 0.562.0(react@19.2.3)
