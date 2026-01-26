@@ -1,22 +1,7 @@
+// services/geminiService.ts
+// 此服務現在作為後端 API 的代理，不再直接調用 Gemini API
 
-import { GoogleGenAI, Type } from "@google/genai";
-import { TimeType, GoalCategory } from "../types";
-
-// Define the schema for the breakdown response
-const breakdownSchema = {
-  type: Type.ARRAY,
-  items: {
-    type: Type.OBJECT,
-    properties: {
-      title: { type: Type.STRING },
-      description: { type: Type.STRING },
-      suggestedType: { type: Type.STRING, enum: ['misc', 'daily', 'long'] },
-      suggestedValue: { type: Type.NUMBER },
-      suggestedGoal: { type: Type.STRING, enum: ['業務', '人資', '管理', '倉儲', '維修', '行銷', '售後', '行政'] },
-    },
-    required: ['title', 'description', 'suggestedType', 'suggestedValue', 'suggestedGoal'],
-  },
-};
+import { TimeType, GoalCategory } from '../types';
 
 export interface BreakdownResult {
   title: string;
@@ -26,42 +11,38 @@ export interface BreakdownResult {
   suggestedGoal: GoalCategory;
 }
 
+const API_BASE = process.env.VITE_API_BASE || 'http://localhost:3000/api';
+
+/**
+ * 使用後端 API 調用 Gemini AI 拆解專案任務
+ * API Key 安全地存放在後端，不會暴露給前端
+ */
 export const breakdownProjectTask = async (
   projectDescription: string
 ): Promise<BreakdownResult[]> => {
-  if (!process.env.API_KEY) {
-    console.warn("API Key not found. Returning mock data.");
-    return [
-      { title: "需求分析", description: "檢視相關文件", suggestedType: "misc", suggestedValue: 30, suggestedGoal: "行政" },
-      { title: "草擬提案", description: "建立初步草案", suggestedType: "daily", suggestedValue: 4, suggestedGoal: "管理" },
-      { title: "執行階段", description: "核心開發與實作", suggestedType: "long", suggestedValue: 3, suggestedGoal: "維修" },
-    ];
-  }
-
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
-    
-    const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: `Break down the following project description into smaller, actionable tasks in Traditional Chinese (繁體中文).
-      For each task, suggest a Time Type ('misc' for < 60 mins, 'daily' for < 8 hours, 'long' for > 1 day) 
-      and a Value (minutes for misc, hours for daily, days for long).
-      Also suggest a Goal Category strictly from this list: 業務, 人資, 管理, 倉儲, 維修, 行銷, 售後, 行政.
-      
-      Project Description: "${projectDescription}"`,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: breakdownSchema,
-        systemInstruction: "You are a project manager assistant. Break down vague requirements into concrete tasks. Output language must be Traditional Chinese (繁體中文).",
+    const response = await fetch(`${API_BASE}/ai/breakdown`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
       },
+      credentials: 'include',
+      body: JSON.stringify({ description: projectDescription }),
     });
 
-    if (response.text) {
-      return JSON.parse(response.text) as BreakdownResult[];
+    if (!response.ok) {
+      throw new Error(`API Error: ${response.statusText}`);
     }
-    return [];
+
+    const data = await response.json();
+    return data.tasks || [];
   } catch (error) {
-    console.error("Gemini API Error:", error);
-    throw error;
+    console.error('Error calling AI breakdown API:', error);
+    // 降級：返回 Mock 數據
+    return [
+      { title: '需求分析', description: '檢視相關文件', suggestedType: 'misc', suggestedValue: 30, suggestedGoal: '行政' },
+      { title: '草擬提案', description: '建立初步草案', suggestedType: 'daily', suggestedValue: 4, suggestedGoal: '管理' },
+      { title: '執行階段', description: '核心開發與實作', suggestedType: 'long', suggestedValue: 3, suggestedGoal: '維修' },
+    ];
   }
 };

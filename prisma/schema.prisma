@@ -1,1 +1,112 @@
-���Ȭʋ�>������~)^u�Z���q�[
+// prisma/schema.prisma
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// 核心資料模型定義
+
+// 1. 使用者模型 (User) - 權限管理
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  passwordHash  String
+  name          String?
+  role          Role      @default(USER) // 角色: ADMIN, USER
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  projects      Project[] // 使用者擁有的專案
+  tasks         Task[]    // 使用者分配到的任務
+}
+
+enum Role {
+  ADMIN
+  USER
+}
+
+// 2. 專案模型 (Project)
+model Project {
+  id            String    @id @default(uuid())
+  title         String
+  description   String?
+  status        Status    @default(PENDING) // 狀態: PENDING, IN_PROGRESS, COMPLETED
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  ownerId       String
+  owner         User      @relation(fields: [ownerId], references: [id])
+  
+  tasks         Task[]    // 專案下的任務
+}
+
+enum Status {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+}
+
+// 3. 任務模型 (Task)
+model Task {
+  id            String    @id @default(uuid())
+  title         String
+  description   String?
+  status        Status    @default(PENDING)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  // 關聯到 Project
+  projectId     String
+  project       Project   @relation(fields: [projectId], references: [id])
+  
+  // 關聯到 User (分配給誰)
+  assignedToId  String?
+  assignedTo    User?     @relation(fields: [assignedToId], references: [id])
+  
+  // Gemini 建議欄位 (來自 geminiService.ts)
+  suggestedType TimeType  @default(MISC) // misc, daily, long
+  suggestedValue Int      @default(0)    // 分鐘, 小時, 天
+  
+  // 關聯到 Category (八大分類)
+  categoryId    String
+  category      Category  @relation(fields: [categoryId], references: [id])
+  
+  // 關聯到 Tag (多對多)
+  tags          TagOnTask[]
+}
+
+enum TimeType {
+  MISC
+  DAILY
+  LONG
+}
+
+// 4. 分類模型 (Category) - 來自 Gemini 的八大分類
+model Category {
+  id            String    @id @default(uuid())
+  name          String    @unique // 業務, 人資, 管理, 倉儲, 維修, 行銷, 售後, 行政
+  tasks         Task[]
+}
+
+// 5. 標籤模型 (Tag)
+model Tag {
+  id            String    @id @default(uuid())
+  name          String    @unique
+  tasks         TagOnTask[]
+}
+
+// 6. 任務與標籤的關聯模型 (TagOnTask)
+model TagOnTask {
+  taskId        String
+  tagId         String
+  
+  task          Task      @relation(fields: [taskId], references: [id])
+  tag           Tag       @relation(fields: [tagId], references: [id])
+  
+  @@id([taskId, tagId])
+}

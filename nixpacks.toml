@@ -1,0 +1,15 @@
+[phases.setup]
+nixPkgs = ["nodejs_20", "pnpm"]
+
+[phases.install]
+cmds = ["pnpm install"]
+
+[phases.build]
+cmds = [
+  "pnpm db:generate",
+  "pnpm build",
+  "npx tsc api/server.ts api/project.ts api/task.ts api/ai.ts services/db.ts --outDir dist --esModuleInterop --module commonjs --target ES2020 --skipLibCheck"
+]
+
+[start]
+cmd = "pnpm db:migrate && node dist/api/server.js"
