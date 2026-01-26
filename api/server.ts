@@ -14,7 +14,7 @@ import taskRouter from './task.js';
 import aiRouter from './ai.js';
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 8080;
 
 // ES Module 中獲取 __dirname
 const __filename = fileURLToPath(import.meta.url);
