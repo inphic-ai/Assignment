@@ -16,4 +16,4 @@ cmds = [
 ]
 
 [start]
-cmd = "node dist/api/server.js"
+cmd = "pnpm deploy"
