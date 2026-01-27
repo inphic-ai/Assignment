@@ -32,7 +32,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
 export default function AdminRoute() {
   const { users, projects, categories } = useLoaderData<typeof loader>();
-  const { currentUser } = useOutletContext<{ currentUser: any; users: any[] }>();
+  const { currentUser, users: allUsers } = useOutletContext<{ currentUser: any; users: any[] }>();
 
   // 檢查權限
   if (currentUser.role !== "admin") {
@@ -46,18 +46,20 @@ export default function AdminRoute() {
     );
   }
 
-  return (
-    <AdminCenter
-      users={users}
-      projects={projects}
-      categories={categories}
-      currentUser={currentUser}
-      onCreateUser={(user) => console.log("Create user:", user)}
-      onUpdateUser={(id, updates) => console.log("Update user:", id, updates)}
-      onDeleteUser={(id) => console.log("Delete user:", id)}
-      onCreateCategory={(category) => console.log("Create category:", category)}
-      onUpdateCategory={(id, updates) => console.log("Update category:", id, updates)}
-      onDeleteCategory={(id) => console.log("Delete category:", id)}
-    />
-  );
+  // 建構 AppState 物件以符合組件期望
+  const appState = {
+    currentUser,
+    users: allUsers,
+    tasks: [],
+    projects,
+    categories,
+    allocations: [],
+    routineTemplates: [],
+    featureRequests: [],
+    announcements: [],
+    logs: [],
+    loginLogs: [],
+  };
+
+  return <AdminCenter data={appState} />;
 }

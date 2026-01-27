@@ -35,6 +35,8 @@ import {
   ShieldCheck,
 } from "lucide-react";
 import globalStyles from "~/styles/globals.css?url";
+import CreateTaskModal from "~/components/CreateTaskModal";
+import { prisma } from "~/services/db.server";
 
 export const links: LinksFunction = () => [
   { rel: "stylesheet", href: globalStyles },
@@ -69,6 +71,7 @@ interface User {
 interface RootLoaderData {
   users: User[];
   currentUser: User;
+  projects: Array<{ id: string; name: string; goal: string }>;
 }
 
 // 建立 User Context
@@ -146,9 +149,16 @@ export async function loader({ request }: LoaderFunctionArgs) {
     },
   ];
 
+  // 載入專案資料
+  const projects = [
+    { id: "p1", name: "客戶管理系統", goal: "業務" as const },
+    { id: "p2", name: "內部流程優化", goal: "管理" as const },
+  ];
+
   return json<RootLoaderData>({
     users,
     currentUser: users[0],
+    projects,
   });
 }
 
@@ -171,9 +181,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
 }
 
 export default function Root() {
-  const { users, currentUser: initialUser } = useLoaderData<RootLoaderData>();
+  const { users, currentUser: initialUser, projects } = useLoaderData<RootLoaderData>();
   const [currentUser, setCurrentUser] = useState<User>(initialUser);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const location = useLocation();
@@ -497,16 +508,26 @@ export default function Root() {
           <Outlet context={{ currentUser, users }} />
         </div>
 
-        <button 
-          onClick={() => {
-            // TODO: 實作新增任務模組
-            console.log('新增任務按鈕被點擊');
-            alert('新增任務功能尚未實作，請前往「任務清單」頁面新增任務');
-          }}
+        <button
+          onClick={() => setShowCreateModal(true)}
           className="fixed bottom-8 right-8 w-16 h-16 bg-stone-800 text-white rounded-full flex items-center justify-center shadow-2xl hover:scale-110 active:scale-95 transition-all z-[90] cursor-pointer"
         >
           <Plus size={32} strokeWidth={3} />
         </button>
+
+        {showCreateModal && (
+          <CreateTaskModal
+            users={users}
+            currentUser={currentUser}
+            projects={projects}
+            onClose={() => setShowCreateModal(false)}
+            onCreate={(tasks, project) => {
+              console.log('Create tasks:', tasks, project);
+              // TODO: 實作任務建立逻輯
+              setShowCreateModal(false);
+            }}
+          />
+        )}
       </main>
     </div>
     </UserContext.Provider>

@@ -1,28 +1,45 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
 import { useLoaderData, useOutletContext } from "@remix-run/react";
+import { prisma } from "~/services/db.server";
 import KnowledgeBase from "~/components/KnowledgeBase";
 
 export async function loader({ request }: LoaderFunctionArgs) {
-  // 暫時使用空陣列，後續可以從資料庫載入知識庫資料
-  const knowledgeItems: any[] = [];
+  // 載入所有已完成並標記為知識的任務
+  const tasks = await prisma.task.findMany({
+    where: {
+      status: "done",
+      linkedKnowledgeId: { not: null },
+    },
+    include: {
+      assignedTo: true,
+      project: true,
+      category: true,
+    },
+  });
+
+  const users = await prisma.user.findMany();
 
   return json({
-    knowledgeItems,
+    tasks: tasks.map((task) => ({
+      ...task,
+      createdAt: task.createdAt.toISOString(),
+      updatedAt: task.updatedAt.toISOString(),
+      startAt: task.startAt?.toISOString() || null,
+      dueAt: task.dueAt?.toISOString() || null,
+    })),
+    users,
   });
 }
 
 export default function KnowledgeRoute() {
-  const { knowledgeItems } = useLoaderData<typeof loader>();
-  const { currentUser } = useOutletContext<{ currentUser: any; users: any[] }>();
+  const { tasks, users } = useLoaderData<typeof loader>();
 
   return (
     <KnowledgeBase
-      items={knowledgeItems}
-      currentUser={currentUser}
-      onCreateItem={(item) => console.log("Create knowledge item:", item)}
-      onUpdateItem={(id, updates) => console.log("Update knowledge item:", id, updates)}
-      onDeleteItem={(id) => console.log("Delete knowledge item:", id)}
+      tasks={tasks}
+      users={users}
+      onSelectTask={(task) => console.log("Select task:", task)}
     />
   );
 }

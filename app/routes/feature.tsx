@@ -14,15 +14,24 @@ export async function loader({ request }: LoaderFunctionArgs) {
 
 export default function FeatureRequestRoute() {
   const { featureRequests } = useLoaderData<typeof loader>();
-  const { currentUser } = useOutletContext<{ currentUser: any; users: any[] }>();
+  const { currentUser, users } = useOutletContext<{ currentUser: any; users: any[] }>();
+
+  // 建構 AppState 物件以符合組件期望
+  const appState = {
+    currentUser,
+    users,
+    featureRequests,
+    tasks: [],
+    projects: [],
+    categories: [],
+    allocations: [],
+    routineTemplates: [],
+  };
 
   return (
     <FeatureRequestCenter
-      requests={featureRequests}
-      currentUser={currentUser}
+      data={appState}
       onCreateRequest={(request) => console.log("Create feature request:", request)}
-      onUpdateRequest={(id, updates) => console.log("Update feature request:", id, updates)}
-      onDeleteRequest={(id) => console.log("Delete feature request:", id)}
     />
   );
 }
