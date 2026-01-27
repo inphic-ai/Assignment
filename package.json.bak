@@ -4,43 +4,36 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "dev": "remix vite:dev",
-    "build": "remix vite:build",
-    "preview": "remix-serve ./build/server/index.js",
-    "start": "remix-serve ./build/server/index.js",
+    "dev": "vite",
+    "dev:server": "ts-node --esm api/server.ts",
+    "build": "vite build",
+    "preview": "vite preview",
+    "start": "node dist/api/server.js",
     "start:prod": "prisma db push --accept-data-loss && node dist/prisma/seed.js && node dist/api/server.js",
     "seed": "node dist/prisma/seed.js",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate deploy",
     "db:push": "prisma db push",
     "db:init": "prisma db push --accept-data-loss && node dist/prisma/seed.js",
-    "postinstall": "prisma generate",
-    "db:seed": "npx tsx prisma/seed.ts"
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@google/genai": "^1.38.0",
     "@prisma/client": "5.22.0",
-    "@remix-run/node": "^2.17.4",
-    "@remix-run/react": "^2.17.4",
-    "@remix-run/serve": "^2.17.4",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.6",
     "bcrypt": "^6.0.0",
     "cors": "^2.8.6",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
-    "isbot": "^4.4.0",
     "lucide-react": "^0.562.0",
     "prisma": "5.22.0",
     "react": "^19.2.3",
     "react-dom": "^19.2.3",
-    "react-router": "^7.13.0",
-    "react-router-dom": "^7.13.0",
     "recharts": "^3.6.0",
     "ts-node": "^10.9.2"
   },
   "devDependencies": {
-    "@remix-run/dev": "^2.17.4",
     "@tailwindcss/postcss": "^4.1.18",
     "@types/bcrypt": "^6.0.0",
     "@types/node": "^22.19.7",
@@ -50,8 +43,5 @@
     "tailwindcss": "^4.1.18",
     "typescript": "~5.8.3",
     "vite": "^6.2.0"
-  },
-  "prisma": {
-    "seed": "npx tsx prisma/seed.ts"
   }
 }
