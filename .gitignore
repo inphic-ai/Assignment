@@ -31,3 +31,8 @@ dist-ssr
 
 # Prisma
 prisma/migrations/**/migration_lock.toml
+
+# Remix
+/.cache
+/build
+.env
