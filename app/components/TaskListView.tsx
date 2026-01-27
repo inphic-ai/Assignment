@@ -28,7 +28,7 @@ const TaskListView: React.FC<TaskListViewProps> = ({
   const filteredTasks = tasks.filter(t => {
     const matchesSearch = t.title.toLowerCase().includes(searchTerm.toLowerCase());
     const goalMatch = selectedGoal === 'all' || t.goal === selectedGoal;
-    const empMatch = selectedEmp === 'all' || t.assigneeId === selectedEmp;
+    const empMatch = selectedEmp === 'all' || t.assignedToId === selectedEmp;
     const quadMatch = selectedQuad === 'all' || getQuadrant(t.goal).toString() === selectedQuad;
     return matchesSearch && goalMatch && empMatch && quadMatch;
   });
@@ -129,7 +129,7 @@ const TaskListView: React.FC<TaskListViewProps> = ({
             const quad = getQuadrant(task.goal);
             const config = QUADRANTS[quad];
             const visual = getVisualConfig(quad);
-            const user = users.find(u => u.id === task.assigneeId);
+            const user = users.find(u => u.id === task.assignedToId);
             
             return (
               <div 
