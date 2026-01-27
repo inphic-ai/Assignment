@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "remix vite:dev",
-    "build": "prisma generate && remix vite:build",
+    "build": "prisma generate && prisma migrate deploy && remix vite:build",
     "preview": "remix-serve ./build/server/index.js",
     "start": "remix-serve ./build/server/index.js",
     "db:generate": "prisma generate",
