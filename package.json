@@ -8,14 +8,10 @@
     "build": "remix vite:build",
     "preview": "remix-serve ./build/server/index.js",
     "start": "remix-serve ./build/server/index.js",
-    "start:prod": "prisma db push --accept-data-loss && node dist/prisma/seed.js && node dist/api/server.js",
-    "seed": "node dist/prisma/seed.js",
     "db:generate": "prisma generate",
-    "db:migrate": "prisma migrate deploy",
     "db:push": "prisma db push",
-    "db:init": "prisma db push --accept-data-loss && node dist/prisma/seed.js",
-    "postinstall": "prisma generate",
-    "db:seed": "npx tsx prisma/seed.ts"
+    "db:seed": "npx tsx prisma/seed.ts",
+    "postinstall": "prisma generate"
   },
   "dependencies": {
     "@google/genai": "^1.38.0",
@@ -50,8 +46,5 @@
     "tailwindcss": "^4.1.18",
     "typescript": "~5.8.3",
     "vite": "^6.2.0"
-  },
-  "prisma": {
-    "seed": "npx tsx prisma/seed.ts"
   }
 }
