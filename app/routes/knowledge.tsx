@@ -5,11 +5,10 @@ import { prisma } from "~/services/db.server";
 import KnowledgeBase from "~/components/KnowledgeBase";
 
 export async function loader({ request }: LoaderFunctionArgs) {
-  // 載入所有已完成並標記為知識的任務
+  // 載入所有已完成的任務（知識庫）
   const tasks = await prisma.task.findMany({
     where: {
       status: "done",
-      linkedKnowledgeId: { not: null },
     },
     include: {
       assignedTo: true,
