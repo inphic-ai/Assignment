@@ -31,6 +31,7 @@ model User {
   projects      Project[] // 使用者擁有的專案
   tasks         Task[]    @relation("AssignedTasks") // 使用者分配到的任務
   createdTasks  Task[]    @relation("CreatedTasks") // 使用者創建的任務
+  allocations   TaskAllocation[] // 使用者的時間分配
 }
 
 enum Role {
@@ -139,6 +140,9 @@ model Task {
   // 關聯到 Tag (多對多)
   tags          TagOnTask[]
   
+  // 時間分配
+  allocations   TaskAllocation[]
+  
   // 時間戳
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -175,4 +179,23 @@ model TagOnTask {
   tag           Tag       @relation(fields: [tagId], references: [id])
   
   @@id([taskId, tagId])
+}
+
+// 7. 任務時間分配模型 (TaskAllocation) - 用於今日時間軸
+model TaskAllocation {
+  id        String   @id @default(uuid())
+  taskId    String
+  userId    String
+  date      String   // YYYY-MM-DD 格式
+  startTime String   // HH:MM 格式
+  endTime   String   // HH:MM 格式
+  status    String   @default("planned") // planned, running, done
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId, date])
+  @@index([taskId])
 }

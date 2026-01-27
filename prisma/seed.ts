@@ -248,21 +248,84 @@ async function main() {
       },
     });
   }
-  console.log(`✅ ${sampleTasks.length} sample tasks seeded.`);
+  console.log(`\u2705 ${sampleTasks.length} sample tasks seeded.`);
 
-  // 5. 驗證資料筆數
+  // 5. 新增 TaskAllocation (今日時間軸資料) - 冗等
+  const today = new Date().toISOString().split('T')[0];
+  const allocations = [
+    {
+      id: 'alloc-1',
+      taskId: 'task-sample-1',
+      userId: 'u1',
+      date: today,
+      startTime: '09:00',
+      endTime: '11:00',
+      status: 'planned',
+    },
+    {
+      id: 'alloc-2',
+      taskId: 'task-sample-2',
+      userId: 'u3',
+      date: today,
+      startTime: '14:00',
+      endTime: '16:00',
+      status: 'running',
+    },
+  ];
+
+  console.log('\ud83d\udcc5 Seeding task allocations...');
+  for (const alloc of allocations) {
+    await prisma.taskAllocation.upsert({
+      where: { id: alloc.id },
+      update: {
+        status: alloc.status,
+      },
+      create: {
+        id: alloc.id,
+        taskId: alloc.taskId,
+        userId: alloc.userId,
+        date: alloc.date,
+        startTime: alloc.startTime,
+        endTime: alloc.endTime,
+        status: alloc.status,
+      },
+    });
+  }
+  console.log(`\u2705 ${allocations.length} task allocations seeded.`);
+
+  // 6. 更新部分任務新增詢問相關欄位
+  await prisma.task.update({
+    where: { id: 'task-sample-1' },
+    data: {
+      pendingInfoRequest: '需要補充週會簡報的具體內容',
+      status: 'IN_PROGRESS',
+    },
+  });
+
+  await prisma.task.update({
+    where: { id: 'task-sample-2' },
+    data: {
+      status: 'IN_PROGRESS',
+      submittedAt: new Date(),
+      submittedBy: 'u3',
+    },
+  });
+  console.log('\u2705 Task inquiry fields updated.');
+
+  // 7. 驗證資料筆數
   const counts = {
     categories: await prisma.category.count(),
     users: await prisma.user.count(),
     projects: await prisma.project.count(),
     tasks: await prisma.task.count(),
+    allocations: await prisma.taskAllocation.count(),
   };
-
   console.log('\n📊 Database Summary:');
   console.log(`   Categories: ${counts.categories}`);
   console.log(`   Users: ${counts.users}`);
   console.log(`   Projects: ${counts.projects}`);
   console.log(`   Tasks: ${counts.tasks}`);
+  console.log(`   Allocations: ${counts.allocations}`);
   console.log(`   Total Records: ${Object.values(counts).reduce((a, b) => a + b, 0)}`);
 
   console.log('\n✅ Seeding Completed');

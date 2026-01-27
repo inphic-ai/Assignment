@@ -30,8 +30,17 @@ export async function loader({ request }: LoaderFunctionArgs) {
     },
   });
 
-  // 暫時使用空陣列，後續可以從資料庫載入
-  const allocations: any[] = [];
+  // 查詢今日的時間分配
+  const today = new Date().toISOString().split('T')[0];
+  const allocations = await prisma.taskAllocation.findMany({
+    where: {
+      date: today,
+    },
+    include: {
+      task: true,
+      user: true,
+    },
+  });
 
   // 轉換 Prisma 資料格式為前端期望的格式
   const formattedTasks = tasks.map((task) => ({
@@ -59,11 +68,17 @@ export async function loader({ request }: LoaderFunctionArgs) {
     role: user.role.toLowerCase() as 'admin' | 'manager' | 'user',
   }));
 
+  const formattedAllocations = allocations.map((alloc) => ({
+    ...alloc,
+    createdAt: alloc.createdAt.toISOString(),
+    updatedAt: alloc.updatedAt.toISOString(),
+  }));
+
   return json({
     tasks: formattedTasks,
     projects,
     users: formattedUsers,
-    allocations,
+    allocations: formattedAllocations,
   });
 }
 
