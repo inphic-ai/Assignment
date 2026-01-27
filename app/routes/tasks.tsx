@@ -43,7 +43,9 @@ export async function action({ request }: ActionFunctionArgs) {
         const title = formData.get("title") as string;
         const description = formData.get("description") as string;
         const projectId = formData.get("projectId") as string | null;
-        const categoryId = formData.get("categoryId") as string | null;
+        const goal = formData.get("goal") as string | null;
+        const timeType = formData.get("timeType") as string | null;
+        const timeValue = parseInt(formData.get("timeValue") as string || "0");
         const assignedToId = formData.get("assignedToId") as string | null;
 
         if (!title) {
@@ -55,11 +57,12 @@ export async function action({ request }: ActionFunctionArgs) {
             title,
             description: description || null,
             projectId: projectId || null,
-            categoryId: categoryId || null,
+            goal: goal || "行政",
+            timeType: (timeType?.toUpperCase() || "MISC") as any,
+            timeValue: timeValue,
             assignedToId: assignedToId || null,
-            status: "PENDING",
-            suggestedType: "MISC",
-            suggestedValue: 0,
+            status: "todo",
+            priority: "medium",
           },
         });
 

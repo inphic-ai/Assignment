@@ -36,7 +36,7 @@ import {
 } from "lucide-react";
 import globalStyles from "~/styles/globals.css?url";
 import CreateTaskModal from "~/components/CreateTaskModal";
-import { prisma } from "~/services/db.server";
+import { useSubmit } from "@remix-run/react";
 
 export const links: LinksFunction = () => [
   { rel: "stylesheet", href: globalStyles },
@@ -188,6 +188,7 @@ export default function Root() {
   const menuRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
   const location = useLocation();
+  const submit = useSubmit();
 
   // 根據路徑判斷當前選中的導航項目
   const getCurrentTab = (): NavTab => {
@@ -521,9 +522,20 @@ export default function Root() {
             currentUser={currentUser}
             projects={projects}
             onClose={() => setShowCreateModal(false)}
-            onCreate={(tasks, project) => {
-              console.log('Create tasks:', tasks, project);
-              // TODO: 實作任務建立逻輯
+            onCreate={(tasks) => {
+              tasks.forEach(task => {
+                const formData = new FormData();
+                formData.append("intent", "create");
+                formData.append("title", task.title || "");
+                formData.append("description", task.description || "");
+                formData.append("projectId", task.projectId || "");
+                formData.append("goal", task.goal || "");
+                formData.append("timeType", task.timeType || "misc");
+                formData.append("timeValue", String(task.timeValue || 0));
+                formData.append("assignedToId", task.assigneeId || "");
+                
+                submit(formData, { method: "post", action: "/tasks" });
+              });
               setShowCreateModal(false);
             }}
           />
