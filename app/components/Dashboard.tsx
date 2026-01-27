@@ -156,7 +156,19 @@ const Dashboard: React.FC<DashboardProps> = ({
       ? userTasks.filter(t => t.assigneeId === viewingUserId && t.creatorId !== viewingUserId && t.status !== 'done') 
       : []; 
 
-  const todayLoadHours = dueToday.reduce((acc, t) => acc + convertToHours(t.timeValue, t.timeType), 0);
+  // 計算今日已分配的任務工時（基於 allocations）
+  const todayAllocations = viewingUserId === 'ALL' 
+    ? allocations 
+    : allocations.filter(a => a.userId === viewingUserId);
+  
+  const todayLoadHours = todayAllocations.reduce((acc, allocation) => {
+    const startTime = allocation.startTime.split(':');
+    const endTime = allocation.endTime.split(':');
+    const startMinutes = parseInt(startTime[0]) * 60 + parseInt(startTime[1]);
+    const endMinutes = parseInt(endTime[0]) * 60 + parseInt(endTime[1]);
+    const hours = (endMinutes - startMinutes) / 60;
+    return acc + hours;
+  }, 0);
 
   const approachingTasks = userTasks.filter(t => {
     const due = new Date(t.dueAt).getTime();

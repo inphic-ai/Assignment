@@ -8,7 +8,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
   // 載入所有已完成的任務（知識庫）
   const tasks = await prisma.task.findMany({
     where: {
-      status: "done",
+      status: "COMPLETED",
     },
     include: {
       assignedTo: true,

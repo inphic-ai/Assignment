@@ -246,7 +246,10 @@ const TaskViews: React.FC<TaskViewsProps> = ({
               {displayTasks.map(task => {
                 const typeConfig = getTypeConfig(task.timeType);
                 const TypeIcon = typeConfig.icon;
-                const user = users.find(u => u.id === task.assigneeId);
+                // 優先顯示 assignments 中的被指派者，若無則使用 assigneeId
+                const assignees = (task as any).assignments?.map((a: any) => a.assignee).filter(Boolean) || [];
+                const user = assignees.length > 0 ? assignees[0] : users.find(u => u.id === task.assigneeId);
+                const hasMultipleAssignees = assignees.length > 1;
                 const isDone = task.status === 'done';
 
                 return (
@@ -283,9 +286,12 @@ const TaskViews: React.FC<TaskViewsProps> = ({
                     <td className="px-10 py-7">
                       <div className="flex items-center gap-2">
                         <div className="w-7 h-7 rounded-lg bg-stone-100 flex items-center justify-center text-[10px] font-black text-stone-400 group-hover:bg-stone-900 group-hover:text-white transition-all">
-                          {user?.name.charAt(0)}
+                          {user?.name?.charAt(0) || '?'}
                         </div>
-                        <span className="text-[11px] font-bold text-stone-600">{user?.name}</span>
+                        <span className="text-[11px] font-bold text-stone-600">
+                          {user?.name || '未指派'}
+                          {hasMultipleAssignees && ` +${assignees.length - 1}`}
+                        </span>
                       </div>
                     </td>
                     <td className="px-10 py-7 text-right">

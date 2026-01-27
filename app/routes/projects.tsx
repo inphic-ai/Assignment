@@ -10,6 +10,12 @@ export async function loader({ request }: LoaderFunctionArgs) {
       project: true,
       assignedTo: true,
       category: true,
+      assignments: {
+        include: {
+          assignee: true,
+          assignedBy: true,
+        },
+      },
     },
     orderBy: {
       createdAt: "desc",

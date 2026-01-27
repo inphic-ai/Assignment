@@ -309,7 +309,14 @@ export default function Root() {
   );
 
   const handleNavigate = (path: string) => {
-    navigate(path);
+    // 保留當前使用者的 userId 參數
+    const searchParams = new URLSearchParams(location.search);
+    const userId = searchParams.get('userId');
+    if (userId) {
+      navigate(`${path}?userId=${userId}`);
+    } else {
+      navigate(path);
+    }
   };
 
   const handleSwitchUser = (userId: string) => {
