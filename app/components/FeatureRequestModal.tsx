@@ -31,8 +31,8 @@ const FeatureRequestModal: React.FC<FeatureRequestModalProps> = ({ onClose, onSu
   };
 
   return (
-    <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-300 overflow-y-auto">
-      <div className="bg-white w-full max-w-[640px] rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col my-8 animate-in zoom-in-95 duration-300">
+    <div className="fixed inset-0 z-[150] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4  overflow-y-auto">
+      <div className="bg-white w-full max-w-[640px] rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col my-8 ">
         
         {/* Header */}
         <div className="p-10 pb-6 flex justify-between items-start">
@@ -54,7 +54,7 @@ const FeatureRequestModal: React.FC<FeatureRequestModalProps> = ({ onClose, onSu
         <div className="px-10 pb-10 space-y-10 overflow-y-auto max-h-[65vh] custom-scrollbar">
           
           {/* Q1 */}
-          <div className="animate-in slide-in-from-bottom-2 duration-300">
+          <div className="">
             <label className={UI_TOKEN.LABEL}>
               ① 你現在遇到什麼問題？ <span className="text-red-500 font-black">*</span>
             </label>
@@ -68,7 +68,7 @@ const FeatureRequestModal: React.FC<FeatureRequestModalProps> = ({ onClose, onSu
           </div>
 
           {/* Q2 */}
-          <div className="animate-in slide-in-from-bottom-2 duration-400">
+          <div className="">
             <label className={UI_TOKEN.LABEL}>
               ② 你希望系統怎麼幫你改善？ <span className="text-red-500 font-black">*</span>
             </label>
@@ -82,7 +82,7 @@ const FeatureRequestModal: React.FC<FeatureRequestModalProps> = ({ onClose, onSu
           </div>
 
           {/* Q3 & Q4 Row */}
-          <div className="grid grid-cols-2 gap-8 animate-in slide-in-from-bottom-2 duration-500">
+          <div className="grid grid-cols-2 gap-8 ">
             <div className="space-y-2">
               <label className={UI_TOKEN.LABEL}>③ 發生問題的頁面是？</label>
               <div className={UI_TOKEN.SELECT_BOX}>
@@ -122,7 +122,7 @@ const FeatureRequestModal: React.FC<FeatureRequestModalProps> = ({ onClose, onSu
           </div>
 
           {/* Q5 */}
-          <div className="animate-in slide-in-from-bottom-2 duration-600">
+          <div className="">
             <label className={UI_TOKEN.LABEL}>⑤ 如果不改，會發生什麼後果？</label>
             <input 
               value={consequence}
@@ -133,7 +133,7 @@ const FeatureRequestModal: React.FC<FeatureRequestModalProps> = ({ onClose, onSu
           </div>
 
           {/* Q6 */}
-          <div className="animate-in slide-in-from-bottom-2 duration-700">
+          <div className="">
             <label className={UI_TOKEN.LABEL}>⑥ 你有沒有相關畫面或說明？</label>
             <button className="mt-2 flex items-center gap-2 px-6 py-3 bg-stone-50 border border-stone-100 rounded-xl text-stone-500 text-sm font-bold hover:bg-stone-100 transition-all">
               <Upload size={18} /> 上傳截圖/影片
@@ -141,7 +141,7 @@ const FeatureRequestModal: React.FC<FeatureRequestModalProps> = ({ onClose, onSu
           </div>
 
           {/* Q7 */}
-          <div className="space-y-5 animate-in slide-in-from-bottom-2 duration-800">
+          <div className="space-y-5 ">
             <label className={UI_TOKEN.LABEL}>⑦ 你覺得這個修改急不急？</label>
             <div className="flex gap-8">
               {[

@@ -23,7 +23,7 @@ const FeatureRequestView: React.FC<FeatureRequestViewProps> = ({ data, onCreateR
   const filtered = requests.filter(r => r.problem.toLowerCase().includes(searchTerm.toLowerCase()));
 
   return (
-    <div className="max-w-screen-xl mx-auto space-y-10 animate-in fade-in duration-500 pb-20">
+    <div className="max-w-screen-xl mx-auto space-y-10  pb-20">
       <div className="bg-white p-10 rounded-[2.5rem] border border-stone-100 flex flex-col md:flex-row justify-between items-center shadow-sm gap-6">
          <div className="flex items-center gap-6">
             <div className="w-16 h-16 rounded-[1.5rem] bg-stone-900 text-white flex items-center justify-center shadow-lg">

@@ -52,7 +52,7 @@ const KnowledgeBase: React.FC<KnowledgeBaseProps> = ({ tasks, users, onSelectTas
     }
     return knowledgeAssets.filter(t => {
       const matchSearch = t.title.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                         (t.submission?.problemSolved || '').toLowerCase().includes(searchTerm.toLowerCase());
+                         (t.problemSolved || '').toLowerCase().includes(searchTerm.toLowerCase());
       const matchGoal = filterGoal === 'all' || t.goal === filterGoal;
       return matchSearch && matchGoal;
     });
@@ -136,7 +136,7 @@ const KnowledgeBase: React.FC<KnowledgeBaseProps> = ({ tasks, users, onSelectTas
   };
 
   return (
-    <div className="max-w-screen-xl mx-auto space-y-10 animate-in fade-in duration-500 pb-20">
+    <div className="max-w-screen-xl mx-auto space-y-10  pb-20">
       
       {/* 頂部標頭 */}
       <div className="flex flex-col md:flex-row justify-between items-end gap-6 mb-4 px-2">
@@ -195,7 +195,7 @@ const KnowledgeBase: React.FC<KnowledgeBaseProps> = ({ tasks, users, onSelectTas
 
             {/* AI 摘要展示區 (分析完成後顯現) */}
             {aiSummary && (
-              <div className="pt-8 border-t border-white/5 animate-in slide-in-from-top-4 duration-500">
+              <div className="pt-8 border-t border-white/5 ">
                  <div className="p-8 bg-white/5 border border-white/10 rounded-[2.5rem] backdrop-blur-md relative overflow-hidden group">
                     <div className="absolute top-0 right-0 p-8 opacity-[0.03] text-white"><ShieldCheck size={120} /></div>
                     <div className="relative z-10">
@@ -271,7 +271,7 @@ const KnowledgeBase: React.FC<KnowledgeBaseProps> = ({ tasks, users, onSelectTas
                      <div className="space-y-2">
                         <p className="font-black text-stone-800 text-base leading-tight group-hover:text-amber-600 transition-colors">{asset.title}</p>
                         {isAiMatched && reason && (
-                          <div className="flex items-start gap-2 p-2 bg-white/80 rounded-xl border border-amber-200/50 shadow-sm animate-in fade-in zoom-in duration-300">
+                          <div className="flex items-start gap-2 p-2 bg-white/80 rounded-xl border border-amber-200/50 shadow-sm ">
                              <ShieldAlert size={12} className="text-amber-600 shrink-0 mt-0.5" />
                              <p className="text-[10px] font-black text-amber-800 italic leading-tight">AI 理由：{reason}</p>
                           </div>
@@ -282,7 +282,7 @@ const KnowledgeBase: React.FC<KnowledgeBaseProps> = ({ tasks, users, onSelectTas
                      <div className="flex items-start gap-2">
                         <PenTool size={14} className="text-stone-300 shrink-0 mt-0.5" />
                         <p className="text-xs font-medium text-stone-500 line-clamp-3 italic leading-relaxed">
-                          「 {asset.submission?.problemSolved || "未留下戰術基因內容。"} 」
+                          「 {asset.problemSolved || "未留下戰術基因內容。"} 」
                         </p>
                      </div>
                   </td>

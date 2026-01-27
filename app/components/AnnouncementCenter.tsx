@@ -32,8 +32,8 @@ const CreateAnnouncementModal = ({ onClose, onAdd, departments }: { onClose: () 
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-stone-900/60 backdrop-blur-md p-4 animate-in fade-in duration-200">
-      <div className="bg-white w-full max-w-[600px] rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col border border-stone-100 animate-in zoom-in-95 duration-300 max-h-[90vh]">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-stone-900/60 backdrop-blur-md p-4 ">
+      <div className="bg-white w-full max-w-[600px] rounded-[2.5rem] shadow-2xl overflow-hidden flex flex-col border border-stone-100  max-h-[90vh]">
         <div className="p-6 border-b border-stone-100 flex justify-between items-center bg-stone-900 text-white shrink-0">
           <div className="flex items-center gap-3">
              <BellRing size={18} className="text-amber-400" />
@@ -109,7 +109,7 @@ const AnnouncementView: React.FC<AnnouncementViewProps> = ({ announcements, curr
   const filtered = announcements.filter(a => filterLevel === 'all' || a.level === filterLevel);
 
   return (
-    <div className="max-w-screen-xl mx-auto space-y-8 animate-in fade-in duration-700 pb-20">
+    <div className="max-w-screen-xl mx-auto space-y-8  pb-20">
       <div className="bg-white p-8 rounded-[2rem] border border-stone-100 flex flex-col md:flex-row justify-between items-center shadow-sm gap-6">
          <div className="flex items-center gap-5">
             <div className="w-16 h-16 rounded-[1.5rem] bg-stone-900 text-white flex items-center justify-center shadow-lg"><Megaphone size={32} /></div>
