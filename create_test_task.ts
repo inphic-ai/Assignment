@@ -18,8 +18,8 @@ async function createTestTask() {
         timeType: 'MISC',
         timeValue: 30,
         status: 'IN_PROGRESS',
-        assignedToId: 'u2', // Alex Chen
-        creatorId: 'u2',
+        assignedToId: 'u1', // Alex Chen
+        creatorId: 'u1',
         startAt: new Date(),
         dueAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 明天
       }

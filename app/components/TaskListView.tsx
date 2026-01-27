@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import { 
-  Filter, Search, Clock, ListTodo, Flame, Crown, CheckCircle2, Circle, ChevronRight, User as UserIcon, Briefcase, Zap, Sun
+  Filter, Search, Clock, ListTodo, Flame, Crown, CheckCircle2, Circle, ChevronRight, User as UserIcon, Briefcase, Zap, Sun, Edit3, Trash2
 } from 'lucide-react';
 import { Task, User, GoalCategory, TimeType } from '~/types';
 import { INITIAL_GOALS } from '~/constants';
@@ -12,12 +12,16 @@ interface TaskListViewProps {
   tasks: Task[];
   users: User[];
   onSelectTask: (task: Task) => void;
+  onEditTask?: (task: Task) => void;
+  onDeleteTask?: (taskId: string) => void;
 }
 
 const TaskListView: React.FC<TaskListViewProps> = ({ 
     tasks = [], 
     users = [],
-    onSelectTask
+    onSelectTask,
+    onEditTask,
+    onDeleteTask
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedGoal, setSelectedGoal] = useState<GoalCategory | 'all'>('all');
@@ -189,9 +193,37 @@ const TaskListView: React.FC<TaskListViewProps> = ({
                           </div>
                         </div>
 
-                        <button className="p-3 bg-stone-50 text-stone-300 group-hover:bg-amber-500 group-hover:text-white rounded-2xl transition-all shadow-sm">
-                            <ChevronRight size={20}/>
-                        </button>
+                        <div className="flex items-center gap-2">
+                          {onEditTask && (
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                onEditTask(task);
+                              }}
+                              className="p-3 bg-blue-50 text-blue-500 hover:bg-blue-500 hover:text-white rounded-2xl transition-all shadow-sm"
+                              title="編輯任務"
+                            >
+                              <Edit3 size={18}/>
+                            </button>
+                          )}
+                          {onDeleteTask && (
+                            <button 
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (confirm('確定要刪除此任務嗎？')) {
+                                  onDeleteTask(task.id);
+                                }
+                              }}
+                              className="p-3 bg-red-50 text-red-500 hover:bg-red-500 hover:text-white rounded-2xl transition-all shadow-sm"
+                              title="刪除任務"
+                            >
+                              <Trash2 size={18}/>
+                            </button>
+                          )}
+                          <button className="p-3 bg-stone-50 text-stone-300 group-hover:bg-amber-500 group-hover:text-white rounded-2xl transition-all shadow-sm">
+                              <ChevronRight size={20}/>
+                          </button>
+                        </div>
                     </div>
                  </div>
               </div>

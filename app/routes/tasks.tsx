@@ -1,6 +1,6 @@
 import type { LoaderFunctionArgs, ActionFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData, useOutletContext } from "@remix-run/react";
+import { useLoaderData, useOutletContext, useSubmit, useNavigate } from "@remix-run/react";
 import { prisma } from "~/services/db.server";
 import TaskListView from "~/components/TaskListView";
 import { useState } from "react";
@@ -120,6 +120,9 @@ export default function TasksRoute() {
   const { tasks, projects, categories, users } = useLoaderData<typeof loader>();
   const { currentUser } = useOutletContext<{ currentUser: any; users: any[] }>();
   const [selectedTask, setSelectedTask] = useState<any | null>(null);
+  const [editingTask, setEditingTask] = useState<any | null>(null);
+  const submit = useSubmit();
+  const navigate = useNavigate();
 
   const formattedTasks = tasks.map((task: any) => ({
     ...task,
@@ -128,11 +131,26 @@ export default function TasksRoute() {
     categoryId: task.categoryId || undefined,
   }));
 
+  const handleEditTask = (task: any) => {
+    setEditingTask(task);
+    // TODO: 實作編輯彈窗或跳轉到編輯頁面
+    console.log('編輯任務:', task);
+  };
+
+  const handleDeleteTask = (taskId: string) => {
+    const formData = new FormData();
+    formData.append('intent', 'delete');
+    formData.append('id', taskId);
+    submit(formData, { method: 'post' });
+  };
+
   return (
     <TaskListView
       tasks={formattedTasks}
       users={users}
       onSelectTask={(task) => setSelectedTask(task)}
+      onEditTask={handleEditTask}
+      onDeleteTask={handleDeleteTask}
     />
   );
 }
