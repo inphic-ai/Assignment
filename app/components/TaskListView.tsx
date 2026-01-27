@@ -133,7 +133,11 @@ const TaskListView: React.FC<TaskListViewProps> = ({
             const quad = getQuadrant(task.goal);
             const config = QUADRANTS[quad];
             const visual = getVisualConfig(quad);
-            const user = users.find(u => u.id === task.assignedToId);
+            
+            // 優先顯示 assignments 中的被指派者，若無則使用 assignedToId
+            const assignees = (task as any).assignments?.map((a: any) => a.assignee).filter(Boolean) || [];
+            const user = assignees.length > 0 ? assignees[0] : users.find(u => u.id === task.assignedToId);
+            const hasMultipleAssignees = assignees.length > 1;
             
             return (
               <div 
@@ -175,10 +179,13 @@ const TaskListView: React.FC<TaskListViewProps> = ({
                         <div className="flex items-center gap-4">
                             <div className="text-right">
                                 <span className="block text-[10px] font-black text-stone-300 uppercase tracking-widest mb-0.5">負責人</span>
-                                <span className="text-xs font-bold text-stone-700">{user?.name}</span>
+                                <span className="text-xs font-bold text-stone-700">
+                                  {user?.name || '未指派'}
+                                  {hasMultipleAssignees && ` +${assignees.length - 1}`}
+                                </span>
                             </div>
                             <div className="w-10 h-10 rounded-2xl bg-white border-2 border-stone-50 flex items-center justify-center text-xs font-black text-stone-500 shadow-sm group-hover:scale-110 transition-transform">
-                                {user?.name.charAt(0) || '?'}
+                                {user?.name?.charAt(0) || '?'}
                             </div>
                         </div>
 
