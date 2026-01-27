@@ -170,7 +170,11 @@ export function Layout({ children }: { children: React.ReactNode }) {
   );
 }
 
-export default function Root() {
+export default function App() {
+  return <Root />;
+}
+
+function Root() {
   const { users, currentUser: initialUser } = useLoaderData<RootLoaderData>();
   const [currentUser, setCurrentUser] = useState<User>(initialUser);
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -319,7 +323,14 @@ export default function Root() {
   }, []);
 
   return (
-    <div className="flex h-screen bg-white overflow-hidden font-sans text-stone-900">
+    <UserContext.Provider
+      value={{
+        currentUser,
+        users,
+        onSwitchUser: handleSwitchUser,
+      }}
+    >
+      <div className="flex h-screen bg-white overflow-hidden font-sans text-stone-900">
       {/* 側邊導覽欄 */}
       <aside className="w-[280px] bg-white border-r border-stone-100 flex flex-col z-20">
         <div className="p-8 pb-10">
@@ -495,5 +506,6 @@ export default function Root() {
         </button>
       </main>
     </div>
+    </UserContext.Provider>
   );
 }
