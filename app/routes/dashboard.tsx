@@ -5,8 +5,15 @@ import { prisma } from "~/services/db.server";
 import Dashboard from "~/components/Dashboard";
 
 export async function loader({ request }: LoaderFunctionArgs) {
+  // 從 URL 參數獲取選擇的使用者 ID
+  const url = new URL(request.url);
+  const selectedUserId = url.searchParams.get('userId');
+
   // 從資料庫載入所有必要資料
   const tasks = await prisma.task.findMany({
+    where: selectedUserId ? {
+      assignedToId: selectedUserId,
+    } : undefined,
     include: {
       project: true,
       assignedTo: true,

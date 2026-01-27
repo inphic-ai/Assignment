@@ -317,6 +317,11 @@ export default function Root() {
     if (newUser) {
       setCurrentUser(newUser);
       setShowUserMenu(false);
+      // 使用 URL 參數來觸發 loader 重新執行
+      const currentPath = location.pathname;
+      const searchParams = new URLSearchParams(location.search);
+      searchParams.set('userId', userId);
+      navigate(`${currentPath}?${searchParams.toString()}`, { replace: true });
     }
   };
 
