@@ -114,8 +114,8 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ users, currentUser, p
   };
 
   return (
-    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-stone-900/60 backdrop-blur-md p-4 animate-in fade-in duration-300">
-      <div className="bg-white w-full max-w-2xl rounded-[3rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] border border-stone-100 animate-in zoom-in-95 duration-500">
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-stone-900/60 backdrop-blur-md p-4 ">
+      <div className="bg-white w-full max-w-2xl rounded-[3rem] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] border border-stone-100 ">
         
         <div className="px-10 py-8 border-b border-stone-50 flex justify-between items-center bg-stone-50/50">
           <button onClick={step > 1 ? () => setStep(step - 1) : onClose} className="text-[10px] font-black text-stone-400 hover:text-stone-900 transition-colors flex items-center gap-2 uppercase tracking-[0.2em]">
@@ -134,7 +134,7 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ users, currentUser, p
 
         <div className="flex-1 overflow-y-auto p-10 space-y-10 custom-scrollbar bg-white">
           {step === 1 && (
-            <div className="space-y-8 animate-in fade-in slide-in-from-right-4">
+            <div className="space-y-8 ">
               <div className="flex items-center gap-3 px-1"><Users size={22} className="text-orange-500" /><h3 className="text-lg font-black text-stone-800">指派權限層級</h3></div>
               <div className="grid grid-cols-2 gap-6">
                 <button onClick={() => { setRole('created_by_me'); setAssigneeId(currentUser.id); }} className={`p-8 rounded-[2.5rem] border-2 text-left transition-all ${role === 'created_by_me' ? 'border-orange-500 bg-orange-50/20 shadow-xl' : 'border-stone-50 bg-stone-50/50 hover:border-stone-200'}`}><UserIcon size={32} className={role === 'created_by_me' ? 'text-orange-600' : 'text-stone-300'} /><div className="mt-4 font-black text-xl text-stone-800">親自執行</div><p className="text-xs text-stone-400 mt-1 font-medium">部署至個人戰略軸</p></button>
@@ -144,7 +144,7 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ users, currentUser, p
           )}
 
           {step === 2 && (
-            <div className="space-y-8 animate-in fade-in slide-in-from-right-4">
+            <div className="space-y-8 ">
               <div className="flex items-center gap-3 px-1"><Clock size={22} className="text-orange-500" /><h3 className="text-lg font-black text-stone-800">選擇任務維度</h3></div>
               <div className="grid grid-cols-2 gap-4">
                 {[
@@ -160,7 +160,7 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ users, currentUser, p
           )}
 
           {step === 3 && (
-            <div className="space-y-8 animate-in fade-in slide-in-from-right-4">
+            <div className="space-y-8 ">
               <div className="space-y-6">
                 <div className="space-y-2">
                   <label className="text-[10px] font-black text-stone-400 uppercase tracking-widest px-2 block">戰略標題 (Required)</label>
@@ -214,7 +214,7 @@ const CreateTaskModal: React.FC<CreateTaskModalProps> = ({ users, currentUser, p
           )}
 
           {step === 4 && (
-            <div className="space-y-8 animate-in fade-in slide-in-from-right-4">
+            <div className="space-y-8 ">
                <div className="flex items-center justify-between px-1">
                   <div className="flex items-center gap-3">
                     <ListChecks size={22} className="text-orange-500" />
