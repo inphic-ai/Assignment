@@ -10,15 +10,26 @@ export async function loader({ request }: LoaderFunctionArgs) {
   const selectedUserId = url.searchParams.get('userId');
 
   // 從資料庫載入所有必要資料
+  // 支援查詢「自己建立」或「被指派給自己」的任務
   const tasks = await prisma.task.findMany({
     where: selectedUserId ? {
-      assignedToId: selectedUserId,
+      OR: [
+        { assignedToId: selectedUserId },
+        { creatorId: selectedUserId },
+        { assignments: { some: { assigneeId: selectedUserId } } },
+      ],
     } : undefined,
     include: {
       project: true,
       assignedTo: true,
       creator: true,
       category: true,
+      assignments: {
+        include: {
+          assignee: true,
+          assignedBy: true,
+        },
+      },
     },
     orderBy: {
       createdAt: "desc",

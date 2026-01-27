@@ -527,7 +527,7 @@ export default function Root() {
             currentUser={currentUser}
             projects={projects}
             onClose={() => setShowCreateModal(false)}
-            onCreate={(tasks) => {
+            onCreate={(tasks, project, assigneeIds) => {
               tasks.forEach(task => {
                 const formData = new FormData();
                 formData.append("intent", "create");
@@ -538,6 +538,14 @@ export default function Root() {
                 formData.append("timeType", task.timeType || "misc");
                 formData.append("timeValue", String(task.timeValue || 0));
                 formData.append("assignedToId", task.assigneeId || "");
+                formData.append("creatorId", currentUser.id);
+                
+                // 如果有指派員工，添加到 formData
+                if (assigneeIds && assigneeIds.length > 0) {
+                  assigneeIds.forEach(id => {
+                    formData.append("assigneeIds[]", id);
+                  });
+                }
                 
                 submit(formData, { method: "post", action: "/tasks" });
               });

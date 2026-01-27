@@ -32,6 +32,8 @@ model User {
   tasks         Task[]    @relation("AssignedTasks") // 使用者分配到的任務
   createdTasks  Task[]    @relation("CreatedTasks") // 使用者創建的任務
   allocations   TaskAllocation[] // 使用者的時間分配
+  taskAssignments TaskAssignment[] @relation("AssignedToUser") // 被指派的任務
+  assignedByMe    TaskAssignment[] @relation("AssignedByUser") // 我指派給別人的任務
 }
 
 enum Role {
@@ -143,6 +145,9 @@ model Task {
   // 時間分配
   allocations   TaskAllocation[]
   
+  // 任務指派關係
+  assignments   TaskAssignment[]
+  
   // 時間戳
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -197,5 +202,24 @@ model TaskAllocation {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
   
   @@index([userId, date])
+  @@index([taskId])
+}
+
+// 8. 任務指派模型 (TaskAssignment) - 支援多人指派
+model TaskAssignment {
+  id           String   @id @default(uuid())
+  taskId       String
+  assigneeId   String   // 被指派者
+  assignedById String   // 指派者
+  status       String   @default("pending") // pending, accepted, rejected, completed
+  assignedAt   DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  
+  task         Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  assignee     User     @relation("AssignedToUser", fields: [assigneeId], references: [id], onDelete: Cascade)
+  assignedBy   User     @relation("AssignedByUser", fields: [assignedById], references: [id], onDelete: Cascade)
+  
+  @@unique([taskId, assigneeId])
+  @@index([assigneeId])
   @@index([taskId])
 }

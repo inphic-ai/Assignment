@@ -6,13 +6,19 @@ import TaskListView from "~/components/TaskListView";
 import EditTaskModal from "~/components/EditTaskModal";
 import { useState } from "react";
 
-// Loader: 讀取所有任務
+// Loader: 讀取所有任務（包含被指派的任務）
 export async function loader({ request }: LoaderFunctionArgs) {
   const tasks = await prisma.task.findMany({
     include: {
       project: true,
       assignedTo: true,
       category: true,
+      assignments: {
+        include: {
+          assignee: true,
+          assignedBy: true,
+        },
+      },
     },
     orderBy: {
       createdAt: "desc",
@@ -48,27 +54,48 @@ export async function action({ request }: ActionFunctionArgs) {
         const timeType = formData.get("timeType") as string | null;
         const timeValue = parseInt(formData.get("timeValue") as string || "0");
         const assignedToId = formData.get("assignedToId") as string | null;
+        const creatorId = formData.get("creatorId") as string | null;
+        const assigneeIds = formData.getAll("assigneeIds[]") as string[];
 
         if (!title) {
           return json({ error: "Title is required" }, { status: 400 });
         }
 
-        const task = await prisma.task.create({
-          data: {
-            title,
-            description: description || null,
-            projectId: projectId || null,
-            goal: goal || "行政",
-            timeType: (timeType?.toUpperCase() || "MISC") as any,
-            timeValue: timeValue,
-            assignedToId: assignedToId || null,
-            status: "todo",
-            priority: "medium",
-          },
+        // 使用 Transaction 確保任務建立與指派關係同時成功
+        const result = await prisma.$transaction(async (tx) => {
+          // 建立任務
+          const task = await tx.task.create({
+            data: {
+              title,
+              description: description || null,
+              projectId: projectId || null,
+              goal: goal || "行政",
+              timeType: (timeType?.toUpperCase() || "MISC") as any,
+              timeValue: timeValue,
+              assignedToId: assignedToId || null,
+              creatorId: creatorId || null,
+              status: "PENDING",
+              priority: "medium",
+            },
+          });
+
+          // 如果有指派員工，建立 TaskAssignment 記錄
+          if (assigneeIds && assigneeIds.length > 0 && creatorId) {
+            await tx.taskAssignment.createMany({
+              data: assigneeIds.map(assigneeId => ({
+                taskId: task.id,
+                assigneeId,
+                assignedById: creatorId,
+                status: "pending",
+              })),
+            });
+          }
+
+          return task;
         });
 
-        console.log("[tasks.action] Task created:", task.id);
-        return json({ success: true, task });
+        console.log("[tasks.action] Task created:", result.id, "with", assigneeIds.length, "assignees");
+        return json({ success: true, task: result });
       }
 
       case "update": {
