@@ -18,11 +18,19 @@ model User {
   passwordHash  String
   name          String?
   role          Role      @default(USER) // 角色: ADMIN, USER
+  avatar        String?
+  department    String?
+  active        Boolean   @default(true)
+  workdayStart  String    @default("09:00")
+  workdayEnd    String    @default("18:00")
+  dailyHours    Float     @default(8.0)
+  defaultLongTaskConversion Int @default(8)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   
   projects      Project[] // 使用者擁有的專案
-  tasks         Task[]    // 使用者分配到的任務
+  tasks         Task[]    @relation("AssignedTasks") // 使用者分配到的任務
+  createdTasks  Task[]    @relation("CreatedTasks") // 使用者創建的任務
 }
 
 enum Role {
@@ -51,33 +59,91 @@ enum Status {
   COMPLETED
 }
 
-// 3. 任務模型 (Task)
+// 3. 任務模型 (Task) - 擴充版
 model Task {
   id            String    @id @default(uuid())
   title         String
   description   String?
   status        Status    @default(PENDING)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
   
-  // 關聯到 Project (改為 optional)
+  // 時間相關
+  timeType      TimeType  @default(MISC)
+  timeValue     Int       @default(0)
+  startAt       DateTime?
+  dueAt         DateTime?
+  scheduledSlot String?
+  
+  // 分類與優先級
+  goal          String?   // GoalCategory
+  priority      String?   // low, medium, high
+  
+  // 排序
+  orderDaily    Int       @default(0)
+  orderInProject Int      @default(0)
+  
+  // 關聯到 Project (optional)
   projectId     String?
   project       Project?  @relation(fields: [projectId], references: [id])
   
-  // 關聯到 User (分配給誰)
+  // 關聯到 User
   assignedToId  String?
-  assignedTo    User?     @relation(fields: [assignedToId], references: [id])
+  assignedTo    User?     @relation("AssignedTasks", fields: [assignedToId], references: [id])
   
-  // Gemini 建議欄位 (來自 geminiService.ts)
-  suggestedType TimeType  @default(MISC) // misc, daily, long
-  suggestedValue Int      @default(0)    // 分鐘, 小時, 天
+  creatorId     String?
+  creator       User?     @relation("CreatedTasks", fields: [creatorId], references: [id])
   
-  // 關聯到 Category (八大分類，改為 optional)
+  // 協作者與觀察者 (JSON array)
+  collaboratorIds String[] @default([])
+  watchers        String[] @default([])
+  
+  // 任務設定
+  requireProof  Boolean   @default(false)
+  
+  // 提交與審核
+  submissionSummary     String?
+  submittedAt           DateTime?
+  submittedBy           String?
+  rating                Int?
+  problemSolved         String?
+  overrunReason         String?
+  reviewedBy            String?
+  reviewedAt            DateTime?
+  
+  // 拒絕與詢問
+  rejectionReason       String?
+  pendingInfoRequest    String?
+  
+  // 連結
+  linkedKnowledgeId     String?
+  fromRoutineId         String?
+  
+  // AI 相關
+  aiTacticalTags        String[] @default([])
+  aiRiskHint            String?
+  aiFromHistory         Boolean  @default(false)
+  
+  // 其他
+  isConfirmed           Boolean  @default(false)
+  remarks               String?
+  totalSpent            Int?     // 總花費時間（秒）
+  activeViewers         String[] @default([])
+  
+  // Gemini 建議欄位
+  suggestedType TimeType  @default(MISC)
+  suggestedValue Int      @default(0)
+  
+  // 關聯到 Category (八大分類，optional)
   categoryId    String?
   category      Category? @relation(fields: [categoryId], references: [id])
   
   // 關聯到 Tag (多對多)
   tags          TagOnTask[]
+  
+  // 時間戳
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
+  deletedBy     String?
 }
 
 enum TimeType {

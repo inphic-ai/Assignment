@@ -10,6 +10,7 @@ export async function loader({ request }: LoaderFunctionArgs) {
     include: {
       project: true,
       assignedTo: true,
+      creator: true,
       category: true,
     },
     orderBy: {
@@ -32,10 +33,36 @@ export async function loader({ request }: LoaderFunctionArgs) {
   // 暫時使用空陣列，後續可以從資料庫載入
   const allocations: any[] = [];
 
+  // 轉換 Prisma 資料格式為前端期望的格式
+  const formattedTasks = tasks.map((task) => ({
+    ...task,
+    // 將 Date 物件轉為 ISO string
+    createdAt: task.createdAt.toISOString(),
+    updatedAt: task.updatedAt.toISOString(),
+    startAt: task.startAt?.toISOString() || new Date().toISOString(),
+    dueAt: task.dueAt?.toISOString() || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+    deletedAt: task.deletedAt?.toISOString(),
+    submittedAt: task.submittedAt?.toISOString(),
+    reviewedAt: task.reviewedAt?.toISOString(),
+    // 映射欄位名稱
+    assigneeId: task.assignedToId || '',
+    timeType: task.timeType.toLowerCase() as 'misc' | 'daily' | 'long',
+    // 確保必要欄位存在
+    role: 'assigned_to_me' as const,
+    attachments: [],
+    watchers: task.watchers || [],
+    collaboratorIds: task.collaboratorIds || [],
+  }));
+
+  const formattedUsers = users.map((user) => ({
+    ...user,
+    role: user.role.toLowerCase() as 'admin' | 'manager' | 'user',
+  }));
+
   return json({
-    tasks,
+    tasks: formattedTasks,
     projects,
-    users,
+    users: formattedUsers,
     allocations,
   });
 }
@@ -43,14 +70,6 @@ export async function loader({ request }: LoaderFunctionArgs) {
 export default function DashboardRoute() {
   const { tasks, projects, users, allocations } = useLoaderData<typeof loader>();
   const { currentUser } = useOutletContext<{ currentUser: any; users: any[] }>();
-
-  // 轉換資料格式以符合 Dashboard 組件的期望
-  const formattedTasks = tasks.map((task: any) => ({
-    ...task,
-    assigneeId: task.assignedToId,
-    projectId: task.projectId || undefined,
-    categoryId: task.categoryId || undefined,
-  }));
 
   const handleNavigateToTasks = (filter: any) => {
     // TODO: 實作導航到任務清單並套用篩選
@@ -64,7 +83,7 @@ export default function DashboardRoute() {
 
   return (
     <Dashboard
-      tasks={formattedTasks}
+      tasks={tasks}
       projects={projects}
       users={users}
       currentUser={currentUser}
