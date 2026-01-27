@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useRef } from 'react';
-import { Task, GoalCategory, User } from '../types';
+import { Task, GoalCategory, User } from '~/types';
 import { 
   Search, Archive, Lightbulb, ChevronRight, ChevronLeft, 
   Sparkles, History, Tag, ChevronDown, PenTool, MessageSquare,
@@ -7,7 +7,7 @@ import {
   ShieldCheck, AlertTriangle, Info, MoreHorizontal, Save, ZapOff,
   ExternalLink, Command, Terminal
 } from 'lucide-react';
-import { INITIAL_GOALS } from '../constants';
+import { INITIAL_GOALS } from '~/constants';
 import { GoogleGenAI, Type } from "@google/genai";
 
 const UI_TOKEN = {

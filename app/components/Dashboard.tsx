@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Task, Project, User, TaskStatus, TaskAllocation, TimeType, GoalCategory } from '../types';
+import { Task, Project, User, TaskStatus, TaskAllocation, TimeType, GoalCategory } from '~/types';
 import { 
   AlertCircle, CheckCircle2, Clock, Calendar, ChevronRight, Users, Shield, 
   ShieldAlert, Hourglass, Plus, Activity, TrendingUp, AlertOctagon, 
@@ -9,7 +9,7 @@ import {
   RotateCcw, Flame
 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
-import { convertToHours, INITIAL_GOALS } from '../constants';
+import { convertToHours, INITIAL_GOALS } from '~/constants';
 
 interface DashboardProps {
   tasks: Task[];

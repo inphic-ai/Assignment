@@ -7,7 +7,7 @@ import {
   Maximize2, ChevronRight, MessageSquare, Upload, ShieldAlert, AlertTriangle, Save,
   TimerOff, CircleAlert
 } from 'lucide-react';
-import { Task, User, LogEntry, TaskAllocation, Attachment } from '../types';
+import { Task, User, LogEntry, TaskAllocation, Attachment } from '~/types';
 
 interface TaskDetailModalProps {
   task: Task;

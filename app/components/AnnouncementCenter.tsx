@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Announcement, User, AnnouncementLevel } from '../types';
+import { Announcement, User, AnnouncementLevel } from '~/types';
 import { 
   Megaphone, Calendar, User as UserIcon, AlertTriangle, Info, Plus, 
   X, Send, BellRing, Users, Eye, Clock, Filter, CheckCircle2,

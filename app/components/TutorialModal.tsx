@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { TutorialTip } from '../types';
+import { TutorialTip } from '~/types';
 import { X, BookOpen, Lightbulb } from 'lucide-react';
 
 interface TutorialModalProps {

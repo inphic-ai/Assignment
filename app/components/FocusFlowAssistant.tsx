@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Sparkles, X, MessageSquare, Zap, Sun, Briefcase, Target, Send, Loader2, Info, Plus } from 'lucide-react';
 import { GoogleGenAI } from "@google/genai";
-import { Task, TimeType } from '../types';
+import { Task, TimeType } from '~/types';
 
 interface FocusFlowAssistantProps {
   tasks: Task[];

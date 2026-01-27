@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Task, Project, ViewMode, TaskStatus, User } from '../types';
+import { Task, Project, ViewMode, TaskStatus, User } from '~/types';
 import { 
   Calendar, Zap, Target, CheckSquare, 
   FileText, Sun, Briefcase, Plus, 
@@ -8,7 +8,7 @@ import {
   Table as TableIcon, LayoutGrid, Info, ArrowUpRight, Search,
   Clock, User as UserIcon
 } from 'lucide-react';
-import { convertToHours } from '../constants';
+import { convertToHours } from '~/constants';
 
 interface TaskViewsProps {
   mode: 'daily' | 'project';

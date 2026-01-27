@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { X, HelpCircle, Upload, ChevronDown } from 'lucide-react';
-import { FeatureRequest, ImpactLevel, UrgencyLevel, User } from '../types';
+import { FeatureRequest, ImpactLevel, UrgencyLevel, User } from '~/types';
 
 interface FeatureRequestModalProps {
   onClose: () => void;

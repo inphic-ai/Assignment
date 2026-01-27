@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { HelpCircle, Plus, Search, HelpCircle as HelpIcon, Calendar, ArrowRight } from 'lucide-react';
-import { FeatureRequest, AppState, User } from '../types';
+import { FeatureRequest, AppState, User } from '~/types';
 import FeatureRequestModal from './FeatureRequestModal';
 
 const UI_TOKEN = {

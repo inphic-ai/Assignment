@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { Task, TaskAllocation, User, GoalCategory, TimeType, TaskStatus, TaskTemplate, RoutineTemplate, Attachment, RoutineStatus } from '../types';
+import { Task, TaskAllocation, User, GoalCategory, TimeType, TaskStatus, TaskTemplate, RoutineTemplate, Attachment, RoutineStatus } from '~/types';
 import { 
   Clock, Zap, Briefcase, Plus, ChevronLeft, ChevronRight, 
   CalendarDays, Play, Square, Sparkles, X, 

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { NavTab, User, Announcement } from '../types';
+import { NavTab, User, Announcement } from '~/types';
 import { 
   LayoutDashboard, CheckSquare, FolderKanban, BookOpen, Settings, 
   Plus, CalendarClock, Megaphone, AlertTriangle, Info, Repeat, 

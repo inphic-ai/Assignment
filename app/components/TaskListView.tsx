@@ -4,8 +4,8 @@ import React, { useState } from 'react';
 import { 
   Filter, Search, Clock, ListTodo, Flame, Crown, CheckCircle2, Circle, ChevronRight, User as UserIcon, Briefcase, Zap, Sun
 } from 'lucide-react';
-import { Task, User, GoalCategory, TimeType } from '../types';
-import { INITIAL_GOALS } from '../constants';
+import { Task, User, GoalCategory, TimeType } from '~/types';
+import { INITIAL_GOALS } from '~/constants';
 import { QUADRANTS, getQuadrant } from './PersonalDashboard';
 
 interface TaskListViewProps {

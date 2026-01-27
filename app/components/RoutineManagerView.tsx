@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { RoutineTemplate, User, GoalCategory, TimeType, RecurrenceType, RoutineStrategy, RoutineStatus, Task } from '../types';
+import { RoutineTemplate, User, GoalCategory, TimeType, RecurrenceType, RoutineStrategy, RoutineStatus, Task } from '~/types';
 import { 
   X, CalendarClock, Plus, Trash2, Check, User as UserIcon, Users, 
   Power, Snowflake, LayoutGrid, List, ArrowRight, RefreshCw, 
   Calendar, AlertCircle, Edit2, ShieldAlert, Zap, Send, CheckCircle2
 } from 'lucide-react';
-import { INITIAL_GOALS, generateId } from '../constants';
+import { INITIAL_GOALS, generateId } from '~/constants';
 
 interface RoutineManagerProps {
   currentUser: User;

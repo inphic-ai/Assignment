@@ -6,9 +6,9 @@ import {
   FolderKanban, Sparkles, ListChecks, MessageSquare, Paperclip, ImageIcon,
   ShieldAlert, Upload, FileText
 } from 'lucide-react';
-import { TimeType, RoleType, GoalCategory, Task, Project, User } from '../types';
-import { INITIAL_GOALS, generateId } from '../constants';
-import { breakdownProjectTask, BreakdownResult } from '../services/geminiService';
+import { TimeType, RoleType, GoalCategory, Task, Project, User } from '~/types';
+import { INITIAL_GOALS, generateId } from '~/constants';
+import { breakdownProjectTask, BreakdownResult } from '~/services/geminiService';
 
 interface CreateTaskModalProps {
   users: User[]; 

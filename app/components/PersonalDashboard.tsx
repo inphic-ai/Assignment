@@ -8,7 +8,7 @@ import {
   ChevronRight, ArrowDownCircle, CheckCircle2, Circle, AlertCircle, RotateCcw, Target, History, Users,
   UserCircle, Info, Crosshair, ZapOff, TrendingUp as UpIcon, Filter
 } from 'lucide-react';
-import { Task, TaskAllocation, GoalCategory, User } from '../types';
+import { Task, TaskAllocation, GoalCategory, User } from '~/types';
 
 // --- UI 樣式定義 ---
 const UI = {

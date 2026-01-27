@@ -4,8 +4,8 @@ import {
   Sparkles, FolderKanban, MessageSquare, ListChecks,
   ChevronRight, Users, User as UserIcon
 } from 'lucide-react';
-import { Task, Project, User, GoalCategory, TimeType } from '../types';
-import { breakdownProjectTask, BreakdownResult } from '../services/geminiService';
+import { Task, Project, User, GoalCategory, TimeType } from '~/types';
+import { breakdownProjectTask, BreakdownResult } from '~/services/geminiService';
 
 interface CreateProjectModalProps {
   onClose: () => void;
