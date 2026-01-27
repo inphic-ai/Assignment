@@ -27,6 +27,52 @@ export const api = {
     }
   },
 
+  // 獲取所有任務
+  async getTasks(): Promise<Task[]> {
+    try {
+      const response = await fetch(`${API_BASE}/tasks`, {
+        method: 'GET',
+        credentials: 'include',
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to fetch tasks: ${response.statusText}`);
+      }
+      return await response.json();
+    } catch (error) {
+      console.error('Error fetching tasks:', error);
+      return [];
+    }
+  },
+
+  // 創建新任務
+  async createTask(taskData: Partial<Task>): Promise<Task> {
+    try {
+      console.log('[api.createTask] Sending request:', taskData);
+      
+      const response = await fetch(`${API_BASE}/tasks`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include',
+        body: JSON.stringify(taskData),
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: response.statusText }));
+        console.error('[api.createTask] Error response:', errorData);
+        throw new Error(errorData.error || `Failed to create task: ${response.statusText}`);
+      }
+      
+      const createdTask = await response.json();
+      console.log('[api.createTask] Task created successfully:', createdTask);
+      return createdTask;
+    } catch (error) {
+      console.error('[api.createTask] Error:', error);
+      throw error;
+    }
+  },
+
   // 更新任務狀態
   async updateTask(id: string, updates: Partial<Task>): Promise<void> {
     try {
@@ -43,6 +89,22 @@ export const api = {
       }
     } catch (error) {
       console.error(`Error updating task ${id}:`, error);
+      throw error;
+    }
+  },
+
+  // 刪除任務
+  async deleteTask(id: string): Promise<void> {
+    try {
+      const response = await fetch(`${API_BASE}/tasks/${id}`, {
+        method: 'DELETE',
+        credentials: 'include',
+      });
+      if (!response.ok) {
+        throw new Error(`Failed to delete task: ${response.statusText}`);
+      }
+    } catch (error) {
+      console.error(`Error deleting task ${id}:`, error);
       throw error;
     }
   },

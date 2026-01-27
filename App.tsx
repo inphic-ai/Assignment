@@ -60,14 +60,24 @@ const App = () => {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const projects = await api.getProjects();
-        // 暫時保留 Mock 資料，因為後端還沒有任務端點
+        // 從後端載入專案和任務
+        const [projects, tasks] = await Promise.all([
+          api.getProjects(),
+          api.getTasks(),
+        ]);
+        
+        console.log('[App] Loaded from backend:', { 
+          projectCount: projects.length, 
+          taskCount: tasks.length 
+        });
+        
         setData(prev => ({
           ...prev,
-          projects: projects.length > 0 ? projects : prev.projects
+          projects: projects.length > 0 ? projects : prev.projects,
+          tasks: tasks.length > 0 ? tasks : prev.tasks,
         }));
       } catch (error) {
-        console.error('Failed to fetch data:', error);
+        console.error('[App] Failed to fetch data:', error);
       }
     };
     fetchData();
@@ -81,23 +91,53 @@ const App = () => {
     }
   };
 
-  const handleCreateTasks = (tasks: Partial<Task>[], project?: Partial<Project>) => {
-    const newTasks = tasks.map(t => ({
-      ...t,
-      id: generateId('TASK'),
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      collaboratorIds: t.collaboratorIds || [],
-      watchers: [],
-      attachments: t.attachments || [],
-      requireProof: false
-    } as Task));
+  const handleCreateTasks = async (tasks: Partial<Task>[], project?: Partial<Project>) => {
+    try {
+      // 如果有專案資料，先創建專案
+      let createdProjectId: string | undefined;
+      if (project) {
+        // TODO: 實作創建專案的 API 呼叫
+        console.warn('[handleCreateTasks] Project creation not yet implemented');
+      }
 
-    setData(prev => ({
-      ...prev,
-      tasks: [...prev.tasks, ...newTasks],
-      projects: project ? [...prev.projects, project as Project] : prev.projects
-    }));
+      // 逐一創建任務並呼叫 API
+      const createdTasks: Task[] = [];
+      for (const taskData of tasks) {
+        try {
+          // 準備要傳送到後端的資料
+          const apiTaskData = {
+            title: taskData.title || '',
+            description: taskData.description || '',
+            projectId: createdProjectId || taskData.projectId || null,
+            assignedToId: taskData.assigneeId || null,
+            suggestedType: taskData.timeType?.toUpperCase() || 'MISC',
+            suggestedValue: taskData.timeValue || 0,
+            status: 'PENDING',
+          };
+
+          console.log('[handleCreateTasks] Creating task:', apiTaskData);
+          const createdTask = await api.createTask(apiTaskData);
+          createdTasks.push(createdTask as Task);
+        } catch (error) {
+          console.error('[handleCreateTasks] Failed to create task:', error);
+          alert(`新增任務失敗：${error instanceof Error ? error.message : '未知錯誤'}`);
+          // 繼續創建其他任務
+        }
+      }
+
+      // 更新前端 state（使用後端返回的資料）
+      if (createdTasks.length > 0) {
+        setData(prev => ({
+          ...prev,
+          tasks: [...prev.tasks, ...createdTasks],
+          projects: project ? [...prev.projects, project as Project] : prev.projects
+        }));
+        console.log(`[handleCreateTasks] Successfully created ${createdTasks.length} task(s)`);
+      }
+    } catch (error) {
+      console.error('[handleCreateTasks] Error:', error);
+      alert(`新增任務時發生錯誤：${error instanceof Error ? error.message : '未知錯誤'}`);
+    }
   };
 
   const handleUpdateTask = (id: string, updates: Partial<Task>) => {
