@@ -170,11 +170,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   );
 }
 
-export default function App() {
-  return <Root />;
-}
-
-function Root() {
+export default function Root() {
   const { users, currentUser: initialUser } = useLoaderData<RootLoaderData>();
   const [currentUser, setCurrentUser] = useState<User>(initialUser);
   const [showUserMenu, setShowUserMenu] = useState(false);
