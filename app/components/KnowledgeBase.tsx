@@ -34,9 +34,9 @@ const KnowledgeBase: React.FC<KnowledgeBaseProps> = ({ tasks, users, onSelectTas
   const [aiReasoning, setAiReasoning] = useState<Record<string, string>>({});
   const [aiSummary, setAiSummary] = useState<string | null>(null);
 
-  // 1. 取得所有已完成並轉化為知識的資產
+  // 1. 取得所有已完成的任務作為知識資產（暫時移除 linkedKnowledgeId 檢查）
   const knowledgeAssets = useMemo(() => {
-    return tasks.filter(t => t.status === 'done' && t.linkedKnowledgeId);
+    return tasks.filter(t => t.status === 'COMPLETED' || t.status === 'done');
   }, [tasks]);
 
   // 2. 核心過濾邏輯
