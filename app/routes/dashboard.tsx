@@ -1,6 +1,6 @@
 import type { LoaderFunctionArgs } from "@remix-run/node";
 import { json } from "@remix-run/node";
-import { useLoaderData, useOutletContext } from "@remix-run/react";
+import { useLoaderData, useOutletContext, useRouteError, isRouteErrorResponse } from "@remix-run/react";
 import { prisma } from "~/services/db.server";
 import Dashboard from "~/components/Dashboard";
 
@@ -94,4 +94,44 @@ export default function DashboardRoute() {
       onOpenCreate={handleOpenCreate}
     />
   );
+}
+
+export function ErrorBoundary() {
+  const error = useRouteError();
+
+  if (isRouteErrorResponse(error)) {
+    return (
+      <div className="p-8 bg-red-50 border border-red-200 rounded-lg">
+        <h1 className="text-2xl font-bold text-red-800 mb-4">
+          {error.status} {error.statusText}
+        </h1>
+        <p className="text-red-600">{error.data}</p>
+      </div>
+    );
+  } else if (error instanceof Error) {
+    return (
+      <div className="p-8 bg-red-50 border border-red-200 rounded-lg">
+        <h1 className="text-2xl font-bold text-red-800 mb-4">Dashboard Error</h1>
+        <div className="space-y-4">
+          <div>
+            <p className="font-semibold text-red-700">Error Message:</p>
+            <p className="text-red-600 font-mono text-sm">{error.message}</p>
+          </div>
+          <div>
+            <p className="font-semibold text-red-700">Stack Trace:</p>
+            <pre className="text-xs text-red-600 bg-red-100 p-4 rounded overflow-auto max-h-96">
+              {error.stack}
+            </pre>
+          </div>
+        </div>
+      </div>
+    );
+  } else {
+    return (
+      <div className="p-8 bg-red-50 border border-red-200 rounded-lg">
+        <h1 className="text-2xl font-bold text-red-800">Unknown Error</h1>
+        <p className="text-red-600">An unexpected error occurred.</p>
+      </div>
+    );
+  }
 }
