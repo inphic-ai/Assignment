@@ -3,6 +3,7 @@ import { json } from "@remix-run/node";
 import { useLoaderData, useOutletContext, useSubmit, useNavigate } from "@remix-run/react";
 import { prisma } from "~/services/db.server";
 import TaskListView from "~/components/TaskListView";
+import EditTaskModal from "~/components/EditTaskModal";
 import { useState } from "react";
 
 // Loader: 讀取所有任務
@@ -72,6 +73,12 @@ export async function action({ request }: ActionFunctionArgs) {
 
       case "update": {
         const id = formData.get("id") as string;
+        const title = formData.get("title") as string;
+        const description = formData.get("description") as string;
+        const goalCategory = formData.get("goalCategory") as string;
+        const timeType = formData.get("timeType") as string;
+        const projectId = formData.get("projectId") as string;
+        const dueAt = formData.get("dueAt") as string;
         const status = formData.get("status") as string;
 
         if (!id) {
@@ -81,6 +88,12 @@ export async function action({ request }: ActionFunctionArgs) {
         const task = await prisma.task.update({
           where: { id },
           data: {
+            ...(title && { title }),
+            ...(description && { description }),
+            ...(goalCategory && { goal: goalCategory }),
+            ...(timeType && { timeType: timeType as any }),
+            ...(projectId && { projectId }),
+            ...(dueAt && { dueAt: new Date(dueAt) }),
             ...(status && { status: status as any }),
           },
         });
@@ -133,8 +146,20 @@ export default function TasksRoute() {
 
   const handleEditTask = (task: any) => {
     setEditingTask(task);
-    // TODO: 實作編輯彈窗或跳轉到編輯頁面
-    console.log('編輯任務:', task);
+  };
+
+  const handleEditSubmit = (taskId: string, data: any) => {
+    const formData = new FormData();
+    formData.append('intent', 'update');
+    formData.append('id', taskId);
+    formData.append('title', data.title);
+    formData.append('description', data.description);
+    formData.append('goalCategory', data.goalCategory);
+    formData.append('timeType', data.timeType);
+    formData.append('projectId', data.projectId);
+    formData.append('dueAt', data.dueAt);
+    formData.append('status', data.status);
+    submit(formData, { method: 'post' });
   };
 
   const handleDeleteTask = (taskId: string) => {
@@ -145,12 +170,21 @@ export default function TasksRoute() {
   };
 
   return (
-    <TaskListView
-      tasks={formattedTasks}
-      users={users}
-      onSelectTask={(task) => setSelectedTask(task)}
-      onEditTask={handleEditTask}
-      onDeleteTask={handleDeleteTask}
-    />
+    <>
+      <TaskListView
+        tasks={formattedTasks}
+        users={users}
+        onSelectTask={(task) => setSelectedTask(task)}
+        onEditTask={handleEditTask}
+        onDeleteTask={handleDeleteTask}
+      />
+      <EditTaskModal
+        isOpen={!!editingTask}
+        onClose={() => setEditingTask(null)}
+        onSubmit={handleEditSubmit}
+        task={editingTask}
+        projects={projects}
+      />
+    </>
   );
 }
