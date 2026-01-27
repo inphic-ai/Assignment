@@ -497,7 +497,14 @@ export default function Root() {
           <Outlet context={{ currentUser, users }} />
         </div>
 
-        <button className="fixed bottom-8 right-8 w-16 h-16 bg-stone-800 text-white rounded-full flex items-center justify-center shadow-2xl hover:scale-110 active:scale-95 transition-all z-[90]">
+        <button 
+          onClick={() => {
+            // TODO: 實作新增任務模組
+            console.log('新增任務按鈕被點擊');
+            alert('新增任務功能尚未實作，請前往「任務清單」頁面新增任務');
+          }}
+          className="fixed bottom-8 right-8 w-16 h-16 bg-stone-800 text-white rounded-full flex items-center justify-center shadow-2xl hover:scale-110 active:scale-95 transition-all z-[90] cursor-pointer"
+        >
           <Plus size={32} strokeWidth={3} />
         </button>
       </main>

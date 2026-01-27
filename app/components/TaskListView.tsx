@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import { Task, User, GoalCategory, TimeType } from '~/types';
 import { INITIAL_GOALS } from '~/constants';
-import { QUADRANTS, getQuadrant } from './PersonalDashboard';
+import { QUADRANTS, getQuadrant } from '~/components/PersonalDashboard';
 
 interface TaskListViewProps {
   tasks: Task[];

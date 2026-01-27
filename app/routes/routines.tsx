@@ -22,18 +22,18 @@ export async function loader({ request }: LoaderFunctionArgs) {
     },
   });
 
-  // 暫時使用空陣列，後續可以從資料庫載入例行工作
-  const routines: any[] = [];
+  // 暫時使用空陣列，後續可以從資料庫載入例行工作模板
+  const templates: any[] = [];
 
   return json({
     tasks,
     users,
-    routines,
+    templates,
   });
 }
 
 export default function RoutinesRoute() {
-  const { tasks, users, routines } = useLoaderData<typeof loader>();
+  const { tasks, users, templates } = useLoaderData<typeof loader>();
   const { currentUser } = useOutletContext<{ currentUser: any; users: any[] }>();
 
   const formattedTasks = tasks.map((task: any) => ({
@@ -45,14 +45,13 @@ export default function RoutinesRoute() {
 
   return (
     <RoutineManagerView
-      tasks={formattedTasks}
-      users={users}
       currentUser={currentUser}
-      routines={routines}
-      onCreateRoutine={(routine) => console.log("Create routine:", routine)}
-      onUpdateRoutine={(id, updates) => console.log("Update routine:", id, updates)}
-      onDeleteRoutine={(id) => console.log("Delete routine:", id)}
-      onGenerateTask={(routine) => console.log("Generate task from routine:", routine)}
+      users={users}
+      templates={templates}
+      onSaveTemplate={(template) => console.log("Save template:", template)}
+      onDeleteTemplate={(id) => console.log("Delete template:", id)}
+      onToggleTemplate={(id, status) => console.log("Toggle template:", id, status)}
+      onInstantiate={(template) => console.log("Instantiate template:", template)}
     />
   );
 }
