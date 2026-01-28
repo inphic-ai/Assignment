@@ -535,27 +535,18 @@ export default function Root() {
             projects={projects}
             onClose={() => setShowCreateModal(false)}
             onCreate={(tasks, project, assigneeIds) => {
-              tasks.forEach(task => {
-                const formData = new FormData();
-                formData.append("intent", "create");
-                formData.append("title", task.title || "");
-                formData.append("description", task.description || "");
-                formData.append("projectId", task.projectId || "");
-                formData.append("goal", task.goal || "");
-                formData.append("timeType", task.timeType || "misc");
-                formData.append("timeValue", String(task.timeValue || 0));
-                formData.append("assignedToId", task.assigneeId || "");
-                formData.append("creatorId", currentUser.id);
-                
-                // 如果有指派員工，添加到 formData
-                if (assigneeIds && assigneeIds.length > 0) {
-                  assigneeIds.forEach(id => {
-                    formData.append("assigneeIds[]", id);
-                  });
-                }
-                
-                submit(formData, { method: "post", action: "/tasks" });
-              });
+              const formData = new FormData();
+              formData.append("intent", "batchCreate");
+              formData.append("tasksJson", JSON.stringify(tasks));
+              formData.append("creatorId", currentUser.id);
+              
+              if (assigneeIds && assigneeIds.length > 0) {
+                assigneeIds.forEach(id => {
+                  formData.append("assigneeIds[]", id);
+                });
+              }
+              
+              submit(formData, { method: "post", action: "/tasks" });
               setShowCreateModal(false);
             }}
           />

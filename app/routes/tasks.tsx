@@ -98,6 +98,63 @@ export async function action({ request }: ActionFunctionArgs) {
         return json({ success: true, task: result });
       }
 
+      case "batchCreate": {
+        const tasksJson = formData.get("tasksJson") as string;
+        const creatorId = formData.get("creatorId") as string;
+        const assigneeIds = formData.getAll("assigneeIds[]") as string[];
+
+        if (!tasksJson) {
+          return json({ error: "Tasks data is required" }, { status: 400 });
+        }
+
+        const tasks = JSON.parse(tasksJson);
+
+        // 使用 Transaction 確保所有任務同時建立成功
+        const results = await prisma.$transaction(async (tx) => {
+          const createdTasks = [];
+
+          for (const taskData of tasks) {
+            // 建立任務
+            const task = await tx.task.create({
+              data: {
+                title: taskData.title,
+                description: taskData.description || null,
+                projectId: taskData.projectId || null,
+                goal: taskData.goal || "行政",
+                timeType: (taskData.timeType?.toUpperCase() || "MISC") as any,
+                timeValue: taskData.timeValue || 0,
+                assignedToId: taskData.assigneeId || null,
+                creatorId: creatorId || null,
+                status: "PENDING",
+                priority: "medium",
+                startAt: taskData.startAt || null,
+                dueAt: taskData.dueAt || null,
+                orderDaily: taskData.orderDaily || 0,
+              },
+            });
+
+            // 如果有指派員工，建立 TaskAssignment 記錄
+            if (assigneeIds && assigneeIds.length > 0 && creatorId) {
+              await tx.taskAssignment.createMany({
+                data: assigneeIds.map(assigneeId => ({
+                  taskId: task.id,
+                  assigneeId,
+                  assignedById: creatorId,
+                  status: "pending",
+                })),
+              });
+            }
+
+            createdTasks.push(task);
+          }
+
+          return createdTasks;
+        });
+
+        console.log("[tasks.action] Batch created:", results.length, "tasks");
+        return json({ success: true, tasks: results });
+      }
+
       case "update": {
         const id = formData.get("id") as string;
         const title = formData.get("title") as string;
