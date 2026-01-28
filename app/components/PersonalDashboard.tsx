@@ -362,7 +362,7 @@ const PersonalDashboard: React.FC<any> = ({ tasks = [], allocations = [], users 
       <section className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="bg-white rounded-4xl p-8 border border-stone-100 shadow-sm flex flex-col min-h-[400px]">
             <h3 className={`${UI.H3} mb-6 flex items-center gap-2`}><Clock size={20} className="text-blue-500" /> 今日時間分佈</h3>
-            <div className="flex-1 flex items-center">
+            <div className="flex-1 flex items-center min-h-[300px]">
               <div className="w-1/2 h-full"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={todayChartData} innerRadius={60} outerRadius={100} paddingAngle={5} dataKey="value" stroke="none">{todayChartData.map((entry, index) => <Cell key={`cell-${index}`} fill={entry.color} />)}</Pie><RechartsTooltip /></PieChart></ResponsiveContainer></div>
               <div className="w-1/2 space-y-4 pl-8">
                 {Object.entries(QUADRANTS).map(([id, config]) => {
