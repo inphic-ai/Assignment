@@ -7,7 +7,7 @@ import DailyTasksView from "~/components/DailyTasksView";
 export async function loader({ request }: LoaderFunctionArgs) {
   const tasks = await prisma.task.findMany({
     where: {
-      suggestedType: "DAILY",
+      timeType: "DAILY",
     },
     include: {
       project: true,
