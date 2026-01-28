@@ -268,6 +268,70 @@ export async function action({ request }: ActionFunctionArgs) {
         return json({ success: true });
       }
 
+      case "deleteProject": {
+        const id = formData.get("id") as string;
+
+        if (!id) {
+          return json({ error: "Project ID is required" }, { status: 400 });
+        }
+
+        await prisma.project.delete({
+          where: { id },
+        });
+
+        console.log("[tasks.action] Project deleted:", id);
+        return json({ success: true });
+      }
+
+      case "createProjectFull": {
+        const projectName = formData.get("projectName") as string;
+        const projectDescription = formData.get("projectDescription") as string;
+        const tasksJson = formData.get("tasksJson") as string;
+        const creatorId = formData.get("creatorId") as string;
+
+        if (!projectName) {
+          return json({ error: "Project name is required" }, { status: 400 });
+        }
+
+        const tasks = tasksJson ? JSON.parse(tasksJson) : [];
+
+        const result = await prisma.$transaction(async (tx) => {
+          const project = await tx.project.create({
+            data: {
+              name: projectName,
+              description: projectDescription || null,
+            },
+          });
+
+          const createdTasks = [];
+          for (const taskData of tasks) {
+            const task = await tx.task.create({
+              data: {
+                title: taskData.title,
+                description: taskData.description || null,
+                projectId: project.id,
+                goal: taskData.goal || "行政",
+                timeType: (taskData.timeType?.toUpperCase() || "LONG") as any,
+                timeValue: taskData.timeValue || 0,
+                assignedToId: taskData.assigneeId || null,
+                creatorId: creatorId || null,
+                status: "PENDING",
+                priority: "medium",
+                startAt: taskData.startAt || null,
+                dueAt: taskData.dueAt || null,
+                orderDaily: taskData.orderDaily || 0,
+              },
+            });
+            createdTasks.push(task);
+          }
+
+          return { project, tasks: createdTasks };
+        });
+
+        console.log("[tasks.action] Project created:", result.project.id, "with", result.tasks.length, "tasks");
+        return json({ success: true, project: result.project, tasks: result.tasks });
+      }
+
       default:
         return json({ error: "Invalid intent" }, { status: 400 });
     }
