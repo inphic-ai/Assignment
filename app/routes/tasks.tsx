@@ -201,6 +201,73 @@ export async function action({ request }: ActionFunctionArgs) {
         return json({ success: true });
       }
 
+      case "createAllocation": {
+        const taskId = formData.get("taskId") as string;
+        const userId = formData.get("userId") as string;
+        const date = formData.get("date") as string;
+        const startTime = formData.get("startTime") as string;
+        const endTime = formData.get("endTime") as string;
+        const status = formData.get("status") as string;
+
+        if (!taskId || !userId || !date || !startTime || !endTime) {
+          return json({ error: "Missing required fields" }, { status: 400 });
+        }
+
+        const allocation = await prisma.taskAllocation.create({
+          data: {
+            taskId,
+            userId,
+            date,
+            startTime,
+            endTime,
+            status: status || "planned",
+          },
+        });
+
+        console.log("[tasks.action] Allocation created:", allocation.id);
+        return json({ success: true, allocation });
+      }
+
+      case "updateAllocation": {
+        const id = formData.get("id") as string;
+        const date = formData.get("date") as string;
+        const startTime = formData.get("startTime") as string;
+        const endTime = formData.get("endTime") as string;
+        const status = formData.get("status") as string;
+
+        if (!id) {
+          return json({ error: "Allocation ID is required" }, { status: 400 });
+        }
+
+        const allocation = await prisma.taskAllocation.update({
+          where: { id },
+          data: {
+            ...(date && { date }),
+            ...(startTime && { startTime }),
+            ...(endTime && { endTime }),
+            ...(status && { status }),
+          },
+        });
+
+        console.log("[tasks.action] Allocation updated:", allocation.id);
+        return json({ success: true, allocation });
+      }
+
+      case "deleteAllocation": {
+        const id = formData.get("id") as string;
+
+        if (!id) {
+          return json({ error: "Allocation ID is required" }, { status: 400 });
+        }
+
+        await prisma.taskAllocation.delete({
+          where: { id },
+        });
+
+        console.log("[tasks.action] Allocation deleted:", id);
+        return json({ success: true });
+      }
+
       default:
         return json({ error: "Invalid intent" }, { status: 400 });
     }
