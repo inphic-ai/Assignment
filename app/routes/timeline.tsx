@@ -57,3 +57,28 @@ export async function loader({ request }: LoaderFunctionArgs) {
     allocations,
   });
 }
+
+export default function TimelineRoute() {
+  const { tasks, projects, users, allocations } = useLoaderData<typeof loader>();
+  const { currentUser } = useOutletContext<{ currentUser: any; users: any[] }>();
+
+  const formattedTasks = tasks.map((task: any) => ({
+    ...task,
+    assigneeId: task.assignedToId,
+    projectId: task.projectId || undefined,
+    categoryId: task.categoryId || undefined,
+  }));
+
+  return (
+    <TimelineView
+      tasks={formattedTasks}
+      projects={projects}
+      users={users}
+      currentUser={currentUser}
+      allocations={allocations}
+      onAddAllocation={(alloc) => console.log("Add allocation:", alloc)}
+      onUpdateAllocation={(id, updates) => console.log("Update allocation:", id, updates)}
+      onDeleteAllocation={(id) => console.log("Delete allocation:", id)}
+    />
+  );
+}
